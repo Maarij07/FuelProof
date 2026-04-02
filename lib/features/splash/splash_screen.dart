@@ -19,9 +19,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void _navigateAfterSplash() async {
     await Future.delayed(const Duration(milliseconds: 1800));
     if (mounted) {
-      // Navigate based on auth state - for now navigate to home
-      // TODO: Implement auth state check
-      Navigator.of(context).pushReplacementNamed('/home');
+      Navigator.of(context).pushReplacementNamed('/auth');
     }
   }
 
@@ -32,7 +30,8 @@ class _SplashScreenState extends State<SplashScreen> {
       body: FadeTransition(
         opacity: Tween<double>(begin: 0, end: 1).animate(
           CurvedAnimation(
-            parent: ModalRoute.of(context)?.animation ?? AlwaysStoppedAnimation(1),
+            parent:
+                ModalRoute.of(context)?.animation ?? AlwaysStoppedAnimation(1),
             curve: Curves.easeInOut,
           ),
         ),
@@ -54,11 +53,8 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
               ),
               SizedBox(height: AppSpacing.xl),
+
               // Brand text
-              Text(
-                'FuelProof',
-                style: Theme.of(context).textTheme.displayLarge,
-              ),
             ],
           ),
         ),

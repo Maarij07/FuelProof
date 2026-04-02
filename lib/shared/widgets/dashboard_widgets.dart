@@ -8,9 +8,9 @@ class ScanToStartCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const ScanToStartCard({
-    Key? key,
+    super.key,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +28,7 @@ class ScanToStartCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppBorderRadius.card),
           boxShadow: [
             BoxShadow(
-              color: AppColors.accentTeal.withOpacity(0.2),
+              color: AppColors.accentTeal.withValues(alpha: 0.2),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -52,7 +52,7 @@ class ScanToStartCard extends StatelessWidget {
             Text(
               'Tap to scan a dispenser QR code',
               style: AppTextStyles.body.copyWith(
-                color: AppColors.white.withOpacity(0.9),
+                color: AppColors.white.withValues(alpha: 0.9),
               ),
               textAlign: TextAlign.center,
             ),
@@ -72,14 +72,14 @@ class TransactionCard extends StatelessWidget {
   final Color statusColor;
 
   const TransactionCard({
-    Key? key,
+    super.key,
     required this.station,
     required this.date,
     required this.litres,
     required this.amount,
     required this.status,
     required this.statusColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +92,7 @@ class TransactionCard extends StatelessWidget {
         border: Border.all(color: AppColors.divider, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -124,7 +124,7 @@ class TransactionCard extends StatelessWidget {
                   vertical: AppSpacing.sm,
                 ),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppBorderRadius.pill),
                 ),
                 child: Text(
@@ -180,11 +180,11 @@ class NearbyStationCard extends StatelessWidget {
   final String address;
 
   const NearbyStationCard({
-    Key? key,
+    super.key,
     required this.stationName,
     required this.distance,
     required this.address,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +197,7 @@ class NearbyStationCard extends StatelessWidget {
         border: Border.all(color: AppColors.divider, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -212,7 +212,7 @@ class NearbyStationCard extends StatelessWidget {
               vertical: AppSpacing.xs,
             ),
             decoration: BoxDecoration(
-              color: AppColors.accentTeal.withOpacity(0.1),
+              color: AppColors.accentTeal.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppBorderRadius.pill),
             ),
             child: Text(
@@ -249,11 +249,11 @@ class EmptyState extends StatelessWidget {
   final IconData icon;
 
   const EmptyState({
-    Key? key,
+    super.key,
     required this.title,
     required this.message,
     required this.icon,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
