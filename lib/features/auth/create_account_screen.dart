@@ -99,6 +99,20 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               ),
             ),
           ),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x1F000000),
+                  Color(0x2B000000),
+                  Color(0x47000000),
+                ],
+                stops: [0.0, 0.5, 1.0],
+              ),
+            ),
+          ),
           SafeArea(
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
@@ -110,11 +124,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    color: AppColors.brandNavy,
-                  ),
                   SizedBox(height: AppSpacing.md),
                   Text(
                     'Create account',
@@ -140,15 +149,25 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         width: double.infinity,
                         padding: EdgeInsets.all(AppSpacing.lg),
                         decoration: BoxDecoration(
-                          color: AppColors.white.withValues(
-                            alpha: 0.22,
-                          ), // UPDATED
+                          color: AppColors.white.withValues(alpha: 0.44),
                           borderRadius: BorderRadius.circular(26),
                           border: Border.all(
-                            color: AppColors.white.withValues(
-                              alpha: 0.72,
-                            ), // UPDATED
+                            color: AppColors.white.withValues(alpha: 0.97),
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.white.withValues(alpha: 0.30),
+                              blurRadius: 22,
+                              offset: const Offset(0, -4),
+                            ),
+                            BoxShadow(
+                              color: AppColors.brandNavy.withValues(
+                                alpha: 0.14,
+                              ),
+                              blurRadius: 24,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
                         ),
                         child: Form(
                           key: _formKey,
@@ -244,6 +263,29 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                                         )
                                       : const Text('Create Account'),
                                 ),
+                              ),
+                              SizedBox(height: AppSpacing.sm),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Already have an account?',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.secondaryText,
+                                        ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(
+                                        context,
+                                      ).pushNamed('/sign-in');
+                                    },
+                                    child: const Text('Sign in'),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
