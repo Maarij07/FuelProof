@@ -47,6 +47,20 @@ class AuthScreen extends StatelessWidget {
               ),
             ),
           ),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x1F000000),
+                  Color(0x2B000000),
+                  Color(0x47000000),
+                ],
+                stops: [0.0, 0.5, 1.0],
+              ),
+            ),
+          ),
           SafeArea(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -144,12 +158,17 @@ class _LoginFormCard extends StatelessWidget {
           width: double.infinity,
           padding: EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.12),
+            color: AppColors.white.withValues(alpha: 0.44),
             borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: AppColors.white.withValues(alpha: 0.72)),
+            border: Border.all(color: AppColors.white.withValues(alpha: 0.97)),
             boxShadow: [
               BoxShadow(
-                color: AppColors.brandNavy.withValues(alpha: 0.08),
+                color: AppColors.white.withValues(alpha: 0.30),
+                blurRadius: 22,
+                offset: const Offset(0, -4),
+              ),
+              BoxShadow(
+                color: AppColors.brandNavy.withValues(alpha: 0.14),
                 blurRadius: 28,
                 offset: const Offset(0, 14),
               ),
@@ -159,7 +178,7 @@ class _LoginFormCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'LOGIN FORM',
+                'Welcome back',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.brandNavy,
