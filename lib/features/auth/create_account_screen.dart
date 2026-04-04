@@ -140,10 +140,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         width: double.infinity,
                         padding: EdgeInsets.all(AppSpacing.lg),
                         decoration: BoxDecoration(
-                          color: AppColors.white.withOpacity(0.22),
+                          color: AppColors.white.withValues(
+                            alpha: 0.22,
+                          ), // UPDATED
                           borderRadius: BorderRadius.circular(26),
                           border: Border.all(
-                            color: AppColors.white.withOpacity(0.72),
+                            color: AppColors.white.withValues(
+                              alpha: 0.72,
+                            ), // UPDATED
                           ),
                         ),
                         child: Form(
@@ -230,7 +234,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                                 child: ElevatedButton(
                                   onPressed: _isSubmitting ? null : _submit,
                                   child: _isSubmitting
-                                      ? const SizedBox(
+                                      ? SizedBox(
                                           width: 22,
                                           height: 22,
                                           child: CircularProgressIndicator(

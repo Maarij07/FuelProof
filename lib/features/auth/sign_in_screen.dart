@@ -137,10 +137,14 @@ class _SignInScreenState extends State<SignInScreen> {
                         width: double.infinity,
                         padding: EdgeInsets.all(AppSpacing.lg),
                         decoration: BoxDecoration(
-                          color: AppColors.white.withOpacity(0.22),
+                          color: AppColors.white.withValues(
+                            alpha: 0.22,
+                          ), // UPDATED: Replaced withOpacity with withValues
                           borderRadius: BorderRadius.circular(26),
                           border: Border.all(
-                            color: AppColors.white.withOpacity(0.72),
+                            color: AppColors.white.withValues(
+                              alpha: 0.72,
+                            ), // UPDATED: Replaced withOpacity with withValues
                           ),
                         ),
                         child: Form(
@@ -205,7 +209,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                 child: ElevatedButton(
                                   onPressed: _isSubmitting ? null : _submit,
                                   child: _isSubmitting
-                                      ? const SizedBox(
+                                      ? SizedBox(
                                           width: 22,
                                           height: 22,
                                           child: CircularProgressIndicator(
