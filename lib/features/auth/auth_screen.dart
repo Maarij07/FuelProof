@@ -94,9 +94,9 @@ class _BrandHeader extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: AppColors.white.withOpacity(0.85),
+            color: AppColors.white.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.white.withOpacity(0.75)),
+            border: Border.all(color: AppColors.white.withValues(alpha: 0.75)),
           ),
           child: const Icon(
             Icons.local_gas_station_rounded,
@@ -144,12 +144,12 @@ class _LoginFormCard extends StatelessWidget {
           width: double.infinity,
           padding: EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
-            color: AppColors.white.withOpacity(0.12),
+            color: AppColors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: AppColors.white.withOpacity(0.72)),
+            border: Border.all(color: AppColors.white.withValues(alpha: 0.72)),
             boxShadow: [
               BoxShadow(
-                color: AppColors.brandNavy.withOpacity(0.08),
+                color: AppColors.brandNavy.withValues(alpha: 0.08),
                 blurRadius: 28,
                 offset: const Offset(0, 14),
               ),

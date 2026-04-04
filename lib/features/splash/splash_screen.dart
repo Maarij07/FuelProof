@@ -3,7 +3,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key}); // UPDATED
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();

@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>FuelProof needs camera access to scan QR codes at fuel stations</string>
 </dict>
 </plist>
