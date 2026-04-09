@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
-import 'services/auth_service.dart';
+import '../../core/models/error_models.dart';
+import '../../core/repositories/auth_repository.dart';
+import '../../core/services/api_client.dart';
+import '../../core/services/token_manager.dart';
 import 'utils/auth_validators.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -20,7 +23,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
 
+  late final AuthRepository _authRepository;
+
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final tokenManager = TokenManager();
+    _authRepository = AuthRepository(
+      apiClient: ApiClient(tokenManager: tokenManager),
+      tokenManager: tokenManager,
+    );
+  }
 
   @override
   void dispose() {
@@ -40,26 +55,38 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      await AuthService.instance.sendPasswordResetLink(
-        email: _emailController.text,
-      );
+      await _authRepository.forgotPassword(email: _emailController.text);
 
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset link has been sent.')),
+        const SnackBar(content: Text('Reset email has been sent.')),
       );
-      Navigator.of(context).pop();
-    } on AuthException catch (error) {
+
+      Navigator.of(context).pushReplacementNamed(
+        '/otp-verify',
+        arguments: {
+          'email': _emailController.text.trim(),
+          'flow': 'reset_password',
+        },
+      );
+    } catch (error) {
       if (!mounted) {
         return;
       }
 
+      final message =
+          error is AppError &&
+              error.detail != null &&
+              error.detail!.trim().isNotEmpty
+          ? error.detail!
+          : 'Unable to send reset email right now.';
+
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() {

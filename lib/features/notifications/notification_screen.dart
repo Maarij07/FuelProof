@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/text_styles.dart';
 import '../../shared/widgets/app_bottom_navigation_bar.dart';
@@ -140,18 +141,4 @@ class _NotificationScreenState extends State<NotificationScreen> {
       ),
     );
   }
-}
-
-class AppBorderRadius {
-  static const double card = 12.0;
-}
-
-class AppShadows {
-  static const List<BoxShadow> subtleList = [
-    BoxShadow(
-      color: Color.fromARGB(8, 0, 0, 0),
-      blurRadius: 8,
-      offset: Offset(0, 2),
-    ),
-  ];
 }

@@ -2,6 +2,7 @@ class AuthValidators {
   static final RegExp _emailPattern = RegExp(
     r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$',
   );
+  static final RegExp _phonePattern = RegExp(r'^\+?[1-9]\d{7,14}$');
 
   static final RegExp _hasUppercase = RegExp(r'[A-Z]');
   static final RegExp _hasLowercase = RegExp(r'[a-z]');
@@ -17,6 +18,34 @@ class AuthValidators {
 
     if (!_emailPattern.hasMatch(email)) {
       return 'Enter a valid email address.';
+    }
+
+    return null;
+  }
+
+  static String? validateFullName(String? value) {
+    final fullName = (value ?? '').trim();
+
+    if (fullName.isEmpty) {
+      return 'Full name is required.';
+    }
+
+    if (fullName.length < 2) {
+      return 'Enter your full name.';
+    }
+
+    return null;
+  }
+
+  static String? validatePhoneNumber(String? value) {
+    final phone = (value ?? '').trim();
+
+    if (phone.isEmpty) {
+      return null;
+    }
+
+    if (!_phonePattern.hasMatch(phone)) {
+      return 'Enter a valid phone number in international format.';
     }
 
     return null;
