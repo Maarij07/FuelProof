@@ -5,8 +5,13 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/text_styles.dart';
+import '../../core/models/error_models.dart';
+import '../../core/repositories/session_repository.dart';
+import '../../core/services/api_client.dart';
+import '../../core/services/token_manager.dart';
 import '../../shared/widgets/app_bottom_navigation_bar.dart';
 
 class ScanQrScreen extends StatefulWidget {
@@ -19,11 +24,17 @@ class ScanQrScreen extends StatefulWidget {
 class _ScanQrScreenState extends State<ScanQrScreen> {
   MobileScannerController? scannerController;
   bool _isScanPermissionGranted = false;
+  bool _isProcessingScan = false;
   String? _scannedCode;
+
+  late final SessionRepository _sessionRepository;
 
   @override
   void initState() {
     super.initState();
+    final tokenManager = TokenManager();
+    final apiClient = ApiClient(tokenManager: tokenManager);
+    _sessionRepository = SessionRepository(apiClient: apiClient);
     _checkAndRequestPermission();
   }
 
@@ -236,6 +247,18 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
                 ),
               ),
       ),
+      floatingActionButton: _isScanPermissionGranted
+          ? FloatingActionButton.extended(
+              onPressed: _isProcessingScan
+                  ? null
+                  : () => scannerController?.toggleTorch(),
+              backgroundColor: AppColors.accentTeal,
+              foregroundColor: AppColors.white,
+              icon: const Icon(Icons.flashlight_on_rounded),
+              label: Text(_isProcessingScan ? 'Scanning...' : 'Toggle Flash'),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
@@ -300,19 +323,44 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppBorderRadius.card),
           child: _isScanPermissionGranted && scannerController != null
-              ? MobileScanner(
-                  controller: scannerController!,
-                  onDetect: (capture) {
-                    final List<Barcode> barcodes = capture.barcodes;
-                    for (final barcode in barcodes) {
-                      setState(() {
-                        _scannedCode = barcode.rawValue;
-                      });
-                      if (barcode.rawValue != null) {
-                        _handleQrCodeDetected(barcode.rawValue!);
-                      }
-                    }
-                  },
+              ? Stack(
+                  children: [
+                    MobileScanner(
+                      controller: scannerController!,
+                      onDetect: (capture) {
+                        if (_isProcessingScan) return;
+
+                        for (final barcode in capture.barcodes) {
+                          final value = barcode.rawValue;
+                          if (value != null && value.trim().isNotEmpty) {
+                            _handleQrCodeDetected(value.trim());
+                            break;
+                          }
+                        }
+                      },
+                    ),
+                    if (_isProcessingScan)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(),
+                                SizedBox(height: AppSpacing.md),
+                                Text(
+                                  'Validating QR...',
+                                  style: AppTextStyles.body.copyWith(
+                                    color: AppColors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 )
               : Container(
                   color: AppColors.lightGray,
@@ -330,57 +378,53 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
   }
 
   void _handleQrCodeDetected(String code) {
-    // Handle successful QR code scan
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('QR Code Scanned'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Code:'),
-            SizedBox(height: AppSpacing.sm),
-            SelectableText(
-              code,
-              style: const TextStyle(fontFamily: 'monospace'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Continue scanning
-              setState(() {
-                _scannedCode = null;
-              });
-            },
-            child: const Text('Scan Again'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context); // Go back to home
-            },
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
+    _processScan(code);
   }
-}
 
-class AppBorderRadius {
-  static const double card = 12.0;
-}
+  Future<void> _processScan(String qrValue) async {
+    setState(() {
+      _isProcessingScan = true;
+      _scannedCode = qrValue;
+    });
 
-class AppShadows {
-  static const List<BoxShadow> lightList = [
-    BoxShadow(
-      color: Color.fromARGB(8, 0, 0, 0),
-      blurRadius: 8,
-      offset: Offset(0, 2),
-    ),
-  ];
+    await scannerController?.stop();
+
+    try {
+      final result = await _sessionRepository.scanQrCode(qrValue);
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacementNamed(
+        '/live-session',
+        arguments: {'sessionId': result.sessionId},
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      var message = 'Unable to scan QR code. Please try again.';
+      if (e is AppError) {
+        final detail = (e.detail ?? '').toLowerCase();
+        if (detail.contains('invalid qr')) {
+          message = 'This QR code is not valid. Please scan again.';
+        } else if (detail.contains('expired')) {
+          message =
+              'This QR code has expired. Ask the attendant for a new one.';
+        } else if (detail.contains('completed') || detail.contains('used')) {
+          message = 'This session has already been used.';
+        } else if (e.detail != null && e.detail!.trim().isNotEmpty) {
+          message = e.detail!;
+        }
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+
+      setState(() {
+        _isProcessingScan = false;
+      });
+
+      await scannerController?.start();
+    }
+  }
 }

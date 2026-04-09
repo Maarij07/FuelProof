@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/services/token_manager.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key}); // UPDATED
@@ -10,6 +11,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  final TokenManager _tokenManager = TokenManager();
+
   @override
   void initState() {
     super.initState();
@@ -18,8 +21,12 @@ class _SplashScreenState extends State<SplashScreen> {
 
   void _navigateAfterSplash() async {
     await Future.delayed(const Duration(milliseconds: 1800));
+    final isLoggedIn = await _tokenManager.isLoggedIn();
+
     if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/auth');
+      Navigator.of(
+        context,
+      ).pushReplacementNamed(isLoggedIn ? '/home' : '/auth');
     }
   }
 

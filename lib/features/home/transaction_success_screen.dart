@@ -1,13 +1,20 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/text_styles.dart';
-import '../../core/constants/spacing.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/constants/spacing.dart';
+import '../../core/constants/text_styles.dart';
+import '../../core/models/error_models.dart';
+import '../../core/models/transaction_models.dart';
+import '../../core/repositories/transaction_repository.dart';
+import '../../core/services/api_client.dart';
+import '../../core/services/token_manager.dart';
 
 class TransactionSuccessScreen extends StatefulWidget {
-  const TransactionSuccessScreen({
-    super.key,
-  }); // UPDATED: Converted to super parameter
+  final String? transactionId;
+
+  const TransactionSuccessScreen({super.key, this.transactionId});
 
   @override
   State<TransactionSuccessScreen> createState() =>
@@ -16,14 +23,28 @@ class TransactionSuccessScreen extends StatefulWidget {
 
 class _TransactionSuccessScreenState extends State<TransactionSuccessScreen>
     with TickerProviderStateMixin {
+  late final TransactionRepository _transactionRepository;
+
   late AnimationController _scaleAnimationController;
   late AnimationController _checkAnimationController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _checkAnimation;
 
+  bool _initialized = false;
+  bool _isLoading = true;
+  bool _isDownloadingReceipt = false;
+  String? _errorMessage;
+  String? _transactionId;
+  Transaction? _transaction;
+
   @override
   void initState() {
     super.initState();
+
+    final tokenManager = TokenManager();
+    final apiClient = ApiClient(tokenManager: tokenManager);
+    _transactionRepository = TransactionRepository(apiClient: apiClient);
+
     _scaleAnimationController = AnimationController(
       duration: AppDurations.long,
       vsync: this,
@@ -48,9 +69,27 @@ class _TransactionSuccessScreenState extends State<TransactionSuccessScreen>
     );
 
     _scaleAnimationController.forward();
-    Future.delayed(Duration(milliseconds: 300), () {
-      _checkAnimationController.forward();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _checkAnimationController.forward();
+      }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+
+    final routeArgs = ModalRoute.of(context)?.settings.arguments;
+    String? routeTransactionId;
+    if (routeArgs is Map<String, dynamic>) {
+      routeTransactionId = routeArgs['transactionId'] as String?;
+    }
+
+    _transactionId = routeTransactionId ?? widget.transactionId;
+    _loadTransaction();
   }
 
   @override
@@ -60,10 +99,106 @@ class _TransactionSuccessScreenState extends State<TransactionSuccessScreen>
     super.dispose();
   }
 
+  Future<void> _loadTransaction() async {
+    final id = _transactionId;
+    if (id == null || id.isEmpty) {
+      setState(() {
+        _errorMessage = 'Transaction details are unavailable.';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final transaction = await _transactionRepository.getTransaction(id);
+      if (!mounted) return;
+      setState(() {
+        _transaction = transaction;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      var message = 'Unable to load transaction summary.';
+      if (e is AppError && e.detail != null && e.detail!.trim().isNotEmpty) {
+        message = e.detail!;
+      }
+      setState(() {
+        _errorMessage = message;
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatCurrency(double amount) {
+    return NumberFormat.currency(
+      locale: 'en_PK',
+      symbol: 'PKR ',
+      decimalDigits: 2,
+    ).format(amount);
+  }
+
+  String _formatDate(String isoDate) {
+    try {
+      final date = DateTime.parse(isoDate).toLocal();
+      return DateFormat('d MMM yyyy, h:mm a').format(date);
+    } catch (_) {
+      return isoDate;
+    }
+  }
+
+  String _label(String value) {
+    if (value.isEmpty) return value;
+    return value[0].toUpperCase() + value.substring(1).toLowerCase();
+  }
+
+  String _shortId(String value) {
+    if (value.length <= 12) return value;
+    return '${value.substring(0, 4)}...${value.substring(value.length - 6)}';
+  }
+
+  Future<void> _downloadReceipt() async {
+    final transaction = _transaction;
+    if (transaction == null || _isDownloadingReceipt) return;
+
+    setState(() {
+      _isDownloadingReceipt = true;
+    });
+
+    try {
+      await _transactionRepository.downloadReceipt(transaction.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Receipt requested successfully.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      var message = 'Unable to download receipt right now.';
+      if (e is AppError && e.detail != null && e.detail!.trim().isNotEmpty) {
+        message = e.detail!;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloadingReceipt = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final transaction = _transaction;
+
     return PopScope(
-      canPop: false, // UPDATED: Replaced WillPopScope with PopScope
+      canPop: false,
       child: Scaffold(
         backgroundColor: AppColors.primaryBackground,
         appBar: AppBar(
@@ -76,205 +211,226 @@ class _TransactionSuccessScreenState extends State<TransactionSuccessScreen>
           ),
           centerTitle: true,
         ),
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.all(AppSpacing.md),
-            child: Column(
-              children: [
-                SizedBox(height: AppSpacing.xl),
-                ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: AppColors.successLight,
-                      shape: BoxShape.circle,
-                      boxShadow: AppShadows.lightList,
-                    ),
-                    child: Center(
-                      child: ScaleTransition(
-                        scale: _checkAnimation,
-                        child: Icon(
-                          Icons.check_rounded,
-                          size: 64,
-                          color: AppColors.success,
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+            ? _buildErrorState()
+            : transaction == null
+            ? _buildErrorState(message: 'Transaction not found')
+            : SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    children: [
+                      SizedBox(height: AppSpacing.xl),
+                      ScaleTransition(
+                        scale: _scaleAnimation,
+                        child: Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: AppColors.successLight,
+                            shape: BoxShape.circle,
+                            boxShadow: AppShadows.lightList,
+                          ),
+                          child: Center(
+                            child: ScaleTransition(
+                              scale: _checkAnimation,
+                              child: Icon(
+                                Icons.check_rounded,
+                                size: 64,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: AppSpacing.lg),
-                Text(
-                  'Transaction Successful!',
-                  style: AppTextStyles.displayHero,
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Your fuel purchase has been completed',
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.secondaryText,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: AppSpacing.xl),
-                Container(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(AppBorderRadius.card),
-                    boxShadow: AppShadows.subtleList,
-                  ),
-                  child: Column(
-                    children: [
-                      _buildDetailRow(
-                        'Transaction ID',
-                        'TXN-2024-089452',
-                        isHighlight: true,
+                      SizedBox(height: AppSpacing.lg),
+                      Text(
+                        'Transaction Successful!',
+                        style: AppTextStyles.displayHero,
+                        textAlign: TextAlign.center,
                       ),
-                      Divider(color: AppColors.softGray, height: AppSpacing.lg),
-                      _buildDetailRow('Date & Time', '4 Apr 2024, 2:45 PM'),
-                      Divider(color: AppColors.softGray, height: AppSpacing.lg),
-                      _buildDetailRow('Station', 'Shell - Makati Avenue'),
-                      Divider(color: AppColors.softGray, height: AppSpacing.lg),
-                      _buildDetailRow('Fuel Type', 'Premium 95 RON'),
-                      Divider(color: AppColors.softGray, height: AppSpacing.lg),
-                      _buildDetailRow('Volume', '45 Liters'),
-                      Divider(color: AppColors.softGray, height: AppSpacing.lg),
-                      _buildDetailRow('Price Per Liter', 'â‚±50.00'),
-                      Divider(color: AppColors.softGray, height: AppSpacing.lg),
-                      _buildDetailRow(
-                        'Total Amount',
-                        'â‚±2,250.00',
-                        isTotal: true,
+                      SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'Your fuel purchase has been completed',
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: AppSpacing.lg),
-                Container(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: AppColors.navyLight,
-                    borderRadius: BorderRadius.circular(AppBorderRadius.card),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Payment Breakdown', style: AppTextStyles.cardTitle),
+                      SizedBox(height: AppSpacing.xl),
+                      Container(
+                        padding: EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(
+                            AppBorderRadius.card,
+                          ),
+                          boxShadow: AppShadows.subtleList,
+                        ),
+                        child: Column(
+                          children: [
+                            _buildDetailRow(
+                              'Transaction ID',
+                              _shortId(transaction.id),
+                              isHighlight: true,
+                            ),
+                            Divider(
+                              color: AppColors.softGray,
+                              height: AppSpacing.lg,
+                            ),
+                            _buildDetailRow(
+                              'Date & Time',
+                              _formatDate(transaction.createdAt),
+                            ),
+                            Divider(
+                              color: AppColors.softGray,
+                              height: AppSpacing.lg,
+                            ),
+                            _buildDetailRow(
+                              'Fuel Type',
+                              _label(transaction.fuelType.name),
+                            ),
+                            Divider(
+                              color: AppColors.softGray,
+                              height: AppSpacing.lg,
+                            ),
+                            _buildDetailRow(
+                              'Volume',
+                              '${transaction.litresDispensed.toStringAsFixed(2)} L',
+                            ),
+                            Divider(
+                              color: AppColors.softGray,
+                              height: AppSpacing.lg,
+                            ),
+                            _buildDetailRow(
+                              'Price Per Liter',
+                              _formatCurrency(transaction.pricePerLitre),
+                            ),
+                            Divider(
+                              color: AppColors.softGray,
+                              height: AppSpacing.lg,
+                            ),
+                            _buildDetailRow(
+                              'Payment Method',
+                              _label(transaction.paymentMethod.name),
+                            ),
+                            Divider(
+                              color: AppColors.softGray,
+                              height: AppSpacing.lg,
+                            ),
+                            _buildDetailRow(
+                              'Total Amount',
+                              _formatCurrency(transaction.totalAmount),
+                              isTotal: true,
+                            ),
+                          ],
+                        ),
+                      ),
                       SizedBox(height: AppSpacing.md),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Subtotal', style: AppTextStyles.body),
-                          Text(
-                            'â‚±2,250.00',
-                            style: AppTextStyles.body.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isDownloadingReceipt
+                              ? null
+                              : _downloadReceipt,
+                          icon: _isDownloadingReceipt
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.white,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(Icons.download_rounded),
+                          label: Text(
+                            _isDownloadingReceipt
+                                ? 'Downloading...'
+                                : 'Download Receipt',
                           ),
-                        ],
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accentTeal,
+                            padding: EdgeInsets.symmetric(
+                              vertical: AppSpacing.md,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppBorderRadius.button,
+                              ),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
                       ),
-                      SizedBox(height: AppSpacing.sm),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Tax (12%)', style: AppTextStyles.body),
-                          Text(
-                            'â‚±270.00',
-                            style: AppTextStyles.body.copyWith(
-                              fontWeight: FontWeight.w600,
+                      SizedBox(height: AppSpacing.md),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(
+                            context,
+                          ).pushNamedAndRemoveUntil('/home', (_) => false),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: AppColors.accentTeal,
+                              width: 2,
+                            ),
+                            padding: EdgeInsets.symmetric(
+                              vertical: AppSpacing.md,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppBorderRadius.button,
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                      SizedBox(height: AppSpacing.sm),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Rewards Applied',
-                            style: AppTextStyles.body.copyWith(
-                              color: AppColors.success,
-                            ),
-                          ),
-                          Text(
-                            '-â‚±50.00',
-                            style: AppTextStyles.body.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.success,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Divider(color: AppColors.divider, height: AppSpacing.lg),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Final Total',
-                            style: AppTextStyles.cardTitle.copyWith(
-                              color: AppColors.brandNavy,
-                            ),
-                          ),
-                          Text(
-                            'â‚±2,470.00',
+                          child: Text(
+                            'Done',
                             style: AppTextStyles.cardTitle.copyWith(
                               color: AppColors.accentTeal,
-                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                        ],
+                        ),
                       ),
+                      SizedBox(height: AppSpacing.xl),
                     ],
                   ),
                 ),
-                SizedBox(height: AppSpacing.xl),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: Icon(Icons.download_rounded),
-                    label: Text('Download Receipt'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accentTeal,
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppBorderRadius.button,
-                        ),
-                      ),
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-                SizedBox(height: AppSpacing.md),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: AppColors.accentTeal, width: 2),
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppBorderRadius.button,
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      'Done',
-                      style: AppTextStyles.cardTitle.copyWith(
-                        color: AppColors.accentTeal,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: AppSpacing.xl),
-              ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState({String? message}) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline_rounded, color: AppColors.alert, size: 44),
+            SizedBox(height: AppSpacing.md),
+            Text(
+              message ?? _errorMessage ?? 'Unable to load transaction summary',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.body,
             ),
-          ),
+            SizedBox(height: AppSpacing.md),
+            ElevatedButton(
+              onPressed: _loadTransaction,
+              child: const Text('Retry'),
+            ),
+            SizedBox(height: AppSpacing.sm),
+            TextButton(
+              onPressed: () => Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/home', (_) => false),
+              child: const Text('Back to Home'),
+            ),
+          ],
         ),
       ),
     );
@@ -295,22 +451,25 @@ class _TransactionSuccessScreenState extends State<TransactionSuccessScreen>
               ? AppTextStyles.cardTitle.copyWith(color: AppColors.brandNavy)
               : AppTextStyles.body.copyWith(color: AppColors.secondaryText),
         ),
-        Text(
-          value,
-          style: isTotal
-              ? AppTextStyles.cardTitle.copyWith(
-                  color: AppColors.accentTeal,
-                  fontWeight: FontWeight.w700,
-                )
-              : isHighlight
-              ? AppTextStyles.body.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.accentTeal,
-                )
-              : AppTextStyles.body.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primaryText,
-                ),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: isTotal
+                ? AppTextStyles.cardTitle.copyWith(
+                    color: AppColors.accentTeal,
+                    fontWeight: FontWeight.w700,
+                  )
+                : isHighlight
+                ? AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.accentTeal,
+                  )
+                : AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryText,
+                  ),
+          ),
         ),
       ],
     );

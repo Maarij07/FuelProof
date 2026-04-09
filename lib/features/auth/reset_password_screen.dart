@@ -7,43 +7,52 @@ import '../../core/constants/spacing.dart';
 import '../../core/models/error_models.dart';
 import '../../core/repositories/auth_repository.dart';
 import '../../core/services/api_client.dart';
+import '../../core/services/firebase_auth_service.dart';
 import '../../core/services/token_manager.dart';
 import 'utils/auth_validators.dart';
 
-class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key});
+class ResetPasswordScreen extends StatefulWidget {
+  final String email;
+
+  const ResetPasswordScreen({super.key, this.email = ''});
 
   @override
-  State<SignInScreen> createState() => _SignInScreenState();
+  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
-class _SignInScreenState extends State<SignInScreen> {
+class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   late final AuthRepository _authRepository;
+  late final FirebaseAuthService _firebaseAuthService;
 
   bool _obscurePassword = true;
-  bool _rememberMe = false;
+  bool _obscureConfirmPassword = true;
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
+    _emailController.text = widget.email;
+
     final tokenManager = TokenManager();
     _authRepository = AuthRepository(
       apiClient: ApiClient(tokenManager: tokenManager),
       tokenManager: tokenManager,
     );
+    _firebaseAuthService = FirebaseAuthService();
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -59,16 +68,29 @@ class _SignInScreenState extends State<SignInScreen> {
     });
 
     try {
-      await _authRepository.login(
-        email: _emailController.text,
+      final firebaseIdToken = await _firebaseAuthService.signInAndGetIdToken(
+        email: _emailController.text.trim(),
         password: _passwordController.text,
+      );
+
+      await _authRepository.resetPassword(
+        firebaseIdToken: firebaseIdToken,
+        newPassword: _passwordController.text,
       );
 
       if (!mounted) {
         return;
       }
 
-      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password reset successfully. Please log in again.'),
+        ),
+      );
+
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil('/sign-in', (route) => false);
     } catch (error) {
       if (!mounted) {
         return;
@@ -79,7 +101,9 @@ class _SignInScreenState extends State<SignInScreen> {
               error.detail != null &&
               error.detail!.trim().isNotEmpty
           ? error.detail!
-          : 'Invalid email or password.';
+          : error is AppError
+          ? error.message
+          : 'Unable to reset password right now.';
 
       ScaffoldMessenger.of(
         context,
@@ -104,6 +128,15 @@ class _SignInScreenState extends State<SignInScreen> {
             _backgroundAsset,
             fit: BoxFit.cover,
             alignment: Alignment.topCenter,
+            errorBuilder: (context, error, stackTrace) => Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFF8F6EF), Color(0xFFF2F4F7)],
+                ),
+              ),
+            ),
           ),
           Container(
             decoration: const BoxDecoration(
@@ -146,7 +179,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 children: [
                   SizedBox(height: AppSpacing.md),
                   Text(
-                    'Sign in',
+                    'Reset password',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: AppColors.brandNavy,
                       fontWeight: FontWeight.w800,
@@ -155,7 +188,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                   SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Welcome back to FuelProof',
+                    'Use the email link to sign in and choose a new password.',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: AppColors.secondaryText,
                     ),
@@ -209,10 +242,12 @@ class _SignInScreenState extends State<SignInScreen> {
                               TextFormField(
                                 controller: _passwordController,
                                 obscureText: _obscurePassword,
-                                textInputAction: TextInputAction.done,
-                                autofillHints: const [AutofillHints.password],
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [
+                                  AutofillHints.newPassword,
+                                ],
                                 decoration: InputDecoration(
-                                  labelText: 'Password',
+                                  labelText: 'New Password',
                                   prefixIcon: const Icon(
                                     Icons.lock_outline_rounded,
                                   ),
@@ -229,133 +264,59 @@ class _SignInScreenState extends State<SignInScreen> {
                                     ),
                                   ),
                                 ),
-                                validator:
-                                    AuthValidators.validatePasswordForSignIn,
+                                validator: AuthValidators
+                                    .validatePasswordForCreateAccount,
+                              ),
+                              SizedBox(height: AppSpacing.md),
+                              TextFormField(
+                                controller: _confirmPasswordController,
+                                obscureText: _obscureConfirmPassword,
+                                textInputAction: TextInputAction.done,
+                                decoration: InputDecoration(
+                                  labelText: 'Confirm Password',
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline_rounded,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscureConfirmPassword =
+                                            !_obscureConfirmPassword;
+                                      });
+                                    },
+                                    icon: Icon(
+                                      _obscureConfirmPassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                    ),
+                                  ),
+                                ),
+                                validator: (value) =>
+                                    AuthValidators.validateConfirmPassword(
+                                      value,
+                                      _passwordController.text,
+                                    ),
                                 onFieldSubmitted: (_) => _submit(),
                               ),
-                              SizedBox(height: AppSpacing.md),
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final compact = constraints.maxWidth < 360;
-                                  final rememberStyle = Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        color: AppColors.secondaryText,
-                                        fontSize: compact ? 12 : null,
-                                      );
-                                  final forgotStyle = Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        color: AppColors.accentTeal,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: compact ? 12 : 13,
-                                      );
-
-                                  return Row(
-                                    children: [
-                                      Expanded(
-                                        child: Row(
-                                          children: [
-                                            Checkbox(
-                                              value: _rememberMe,
-                                              visualDensity: compact
-                                                  ? const VisualDensity(
-                                                      horizontal: -4,
-                                                      vertical: -4,
-                                                    )
-                                                  : const VisualDensity(
-                                                      horizontal: -3,
-                                                      vertical: -3,
-                                                    ),
-                                              materialTapTargetSize:
-                                                  MaterialTapTargetSize
-                                                      .shrinkWrap,
-                                              onChanged: (value) {
-                                                setState(() {
-                                                  _rememberMe = value ?? false;
-                                                });
-                                              },
-                                            ),
-                                            SizedBox(width: compact ? 2 : 4),
-                                            Expanded(
-                                              child: Text(
-                                                'Remember me ?',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: rememberStyle,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      SizedBox(width: compact ? 6 : 10),
-                                      TextButton(
-                                        style: TextButton.styleFrom(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: compact ? 6 : 8,
-                                            vertical: compact ? 4 : 6,
-                                          ),
-                                          minimumSize: Size.zero,
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        onPressed: () {
-                                          Navigator.of(
-                                            context,
-                                          ).pushNamed('/forgot-password');
-                                        },
-                                        child: Text(
-                                          'Forgot password?',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: forgotStyle,
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                              SizedBox(height: AppSpacing.md),
+                              SizedBox(height: AppSpacing.lg),
                               SizedBox(
                                 height: 52,
                                 child: ElevatedButton(
                                   onPressed: _isSubmitting ? null : _submit,
                                   child: _isSubmitting
                                       ? SizedBox(
-                                          width: 22,
-                                          height: 22,
+                                          width: 20,
+                                          height: 20,
                                           child: CircularProgressIndicator(
-                                            strokeWidth: 2.4,
-                                            color: AppColors.white,
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  AppColors.white,
+                                                ),
                                           ),
                                         )
-                                      : const Text('Sign in'),
+                                      : const Text('Reset Password'),
                                 ),
-                              ),
-                              SizedBox(height: AppSpacing.sm),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Don\'t have an account?',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: AppColors.secondaryText,
-                                        ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.of(
-                                        context,
-                                      ).pushNamed('/create-account');
-                                    },
-                                    child: const Text('Sign up'),
-                                  ),
-                                ],
                               ),
                             ],
                           ),
@@ -363,7 +324,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(height: AppSpacing.xl),
+                  SizedBox(height: AppSpacing.xxl),
                 ],
               ),
             ),

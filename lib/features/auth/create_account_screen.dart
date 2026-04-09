@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
-import 'services/auth_service.dart';
+import '../../core/models/error_models.dart';
+import '../../core/repositories/auth_repository.dart';
+import '../../core/services/api_client.dart';
+import '../../core/services/token_manager.dart';
 import 'utils/auth_validators.dart';
 
 class CreateAccountScreen extends StatefulWidget {
@@ -18,17 +21,33 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
 
   final _formKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  late final AuthRepository _authRepository;
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSubmitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    final tokenManager = TokenManager();
+    _authRepository = AuthRepository(
+      apiClient: ApiClient(tokenManager: tokenManager),
+      tokenManager: tokenManager,
+    );
+  }
+
+  @override
   void dispose() {
+    _fullNameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -46,24 +65,42 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     });
 
     try {
-      await AuthService.instance.createAccount(
+      await _authRepository.signup(
+        fullName: _fullNameController.text,
         email: _emailController.text,
         password: _passwordController.text,
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
       );
 
       if (!mounted) {
         return;
       }
 
-      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
-    } on AuthException catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account created successfully.')),
+      );
+
+      Navigator.of(context).pushReplacementNamed(
+        '/otp-verify',
+        arguments: {'email': _emailController.text.trim(), 'flow': 'signup'},
+      );
+    } catch (error) {
       if (!mounted) {
         return;
       }
 
+      final message =
+          error is AppError &&
+              error.detail != null &&
+              error.detail!.trim().isNotEmpty
+          ? error.detail!
+          : 'Unable to create account right now.';
+
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -175,6 +212,20 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               TextFormField(
+                                controller: _fullNameController,
+                                textInputAction: TextInputAction.next,
+                                textCapitalization: TextCapitalization.words,
+                                autofillHints: const [AutofillHints.name],
+                                decoration: const InputDecoration(
+                                  labelText: 'Full Name',
+                                  prefixIcon: Icon(
+                                    Icons.person_outline_rounded,
+                                  ),
+                                ),
+                                validator: AuthValidators.validateFullName,
+                              ),
+                              SizedBox(height: AppSpacing.md),
+                              TextFormField(
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
@@ -186,6 +237,20 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                                   prefixIcon: Icon(Icons.mail_outline_rounded),
                                 ),
                                 validator: AuthValidators.validateEmail,
+                              ),
+                              SizedBox(height: AppSpacing.md),
+                              TextFormField(
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [
+                                  AutofillHints.telephoneNumber,
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: 'Phone Number (optional)',
+                                  prefixIcon: Icon(Icons.phone_outlined),
+                                ),
+                                validator: AuthValidators.validatePhoneNumber,
                               ),
                               SizedBox(height: AppSpacing.md),
                               TextFormField(
