@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>FuelProof needs camera access to scan QR codes at fuel stations</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>FuelProof needs photo library access to select profile pictures from your gallery</string>
 </dict>
 </plist>

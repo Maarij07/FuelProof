@@ -1,613 +1,699 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/spacing.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/constants/spacing.dart';
+import '../../core/constants/text_styles.dart';
+import '../../core/models/auth_models.dart';
+import '../../core/models/transaction_models.dart';
+import '../../core/repositories/auth_repository.dart';
+import '../../core/repositories/transaction_repository.dart';
+import '../../core/services/api_client.dart';
+import '../../core/services/token_manager.dart';
+import '../../shared/widgets/app_bottom_navigation_bar.dart';
+import '../../shared/widgets/dashboard_widgets.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedNavIndex = 0;
-  final String userName = 'Ayesha';
+  late final TokenManager _tokenManager;
+  late final ApiClient _apiClient;
+  late final AuthRepository _authRepository;
+  late final TransactionRepository _transactionRepository;
 
-  final List<Map<String, dynamic>> recentTransactions = [
-    {
-      'station': 'Shell Gulberg',
-      'date': '2 Apr · 10:30 AM',
-      'litres': '25.5 L',
-      'amount': 'PKR 5,715',
-      'status': 'Verified',
-      'icon': Icons.check_circle,
-    },
-    {
-      'station': 'Hascol Wapda Town',
-      'date': '1 Apr · 3:15 PM',
-      'litres': '30.2 L',
-      'amount': 'PKR 6,795',
-      'status': 'Verified',
-      'icon': Icons.check_circle,
-    },
-    {
-      'station': 'Total Lahore',
-      'date': '31 Mar · 9:45 AM',
-      'litres': '22.8 L',
-      'amount': 'PKR 5,130',
-      'status': 'Verified',
-      'icon': Icons.check_circle,
-    },
-  ];
+  User? _user;
+  List<FuelPrice> _fuelPrices = const [];
+  List<Transaction> _recentTransactions = const [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  String? _transactionsError;
+  String? _pricesError;
 
-  final List<Map<String, String>> nearbyStations = [
-    {'name': 'Shell Defence', 'distance': '2.3 km', 'address': 'Defence'},
-    {'name': 'Hascol Gulberg', 'distance': '1.8 km', 'address': 'Gulberg'},
-    {'name': 'Total Wapda', 'distance': '3.2 km', 'address': 'Wapda Town'},
-    {'name': 'PSO Johar', 'distance': '2.7 km', 'address': 'Johar Town'},
-  ];
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Morning';
-    if (hour < 17) return 'Afternoon';
-    return 'Evening';
-  }
-
-  void _onScanTap() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Navigate to QR Scan Screen')),
+  @override
+  void initState() {
+    super.initState();
+    _tokenManager = TokenManager();
+    _apiClient = ApiClient(tokenManager: _tokenManager);
+    _authRepository = AuthRepository(
+      apiClient: _apiClient,
+      tokenManager: _tokenManager,
     );
+    _transactionRepository = TransactionRepository(apiClient: _apiClient);
+    _loadDashboardData();
   }
 
-  void _onNavItemTap(int index) {
-    setState(() => _selectedNavIndex = index);
+  void _navigateToScreen(String routeName) {
+    Navigator.of(context).pushNamed(routeName);
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _transactionsError = null;
+      _pricesError = null;
+    });
+
+    try {
+      final userFuture = _authRepository.getCurrentUser();
+      final transactionsFuture = _transactionRepository.getMyTransactions(
+        limit: 3,
+        offset: 0,
+      );
+      final pricesFuture = _transactionRepository.getCurrentPrices();
+
+      final user = await userFuture;
+
+      List<Transaction> recentTransactions = const [];
+      try {
+        final transactionResponse = await transactionsFuture;
+        recentTransactions = transactionResponse.items;
+      } catch (e) {
+        _transactionsError = 'Recent transactions are unavailable right now.';
+      }
+
+      List<FuelPrice> fuelPrices = const [];
+      try {
+        fuelPrices = await pricesFuture;
+      } catch (e) {
+        _pricesError = 'Live fuel prices are unavailable right now.';
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _user = user;
+        _recentTransactions = recentTransactions;
+        _fuelPrices = fuelPrices;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = 'Unable to load your account data right now';
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  String _displayName() {
+    final fullName = _user?.fullName.trim();
+    if (fullName == null || fullName.isEmpty) return 'Ayesha';
+    return fullName.split(' ').first;
+  }
+
+  String _roleLabel() {
+    final role = (_user?.role ?? 'customer').trim();
+    if (role.isEmpty) return 'Customer';
+    return role[0].toUpperCase() + role.substring(1).toLowerCase();
+  }
+
+  String _fuelTypeLabel(FuelType fuelType) {
+    switch (fuelType) {
+      case FuelType.petrol:
+        return 'Petrol';
+      case FuelType.diesel:
+        return 'Diesel';
+      case FuelType.premium:
+        return 'Premium';
+      case FuelType.cng:
+        return 'CNG';
+      case FuelType.lpg:
+        return 'LPG';
+    }
+  }
+
+  String _transactionStatusLabel(TransactionStatus status) {
+    switch (status) {
+      case TransactionStatus.completed:
+        return 'Completed';
+      case TransactionStatus.pending:
+        return 'Pending';
+      case TransactionStatus.failed:
+        return 'Failed';
+      case TransactionStatus.refunded:
+        return 'Refunded';
+    }
+  }
+
+  Color _transactionStatusColor(TransactionStatus status) {
+    switch (status) {
+      case TransactionStatus.completed:
+        return AppColors.success;
+      case TransactionStatus.pending:
+        return AppColors.warning;
+      case TransactionStatus.failed:
+        return AppColors.alert;
+      case TransactionStatus.refunded:
+        return AppColors.brandNavy;
+    }
+  }
+
+  IconData _fuelTypeIcon(FuelType fuelType) {
+    switch (fuelType) {
+      case FuelType.petrol:
+      case FuelType.premium:
+        return Icons.local_fire_department_rounded;
+      case FuelType.diesel:
+        return Icons.oil_barrel_rounded;
+      case FuelType.cng:
+        return Icons.local_gas_station_rounded;
+      case FuelType.lpg:
+        return Icons.propane_tank_rounded;
+    }
+  }
+
+  String _formatCurrency(double amount) {
+    return NumberFormat.currency(
+      locale: 'en_PK',
+      symbol: 'PKR ',
+      decimalDigits: 2,
+    ).format(amount);
+  }
+
+  String _formatUpdatedDate(String isoDate) {
+    try {
+      final date = DateTime.parse(isoDate).toLocal();
+      return 'Updated ${DateFormat.MMMd().format(date)}';
+    } catch (_) {
+      return 'Updated recently';
+    }
+  }
+
+  String _formatRelativeTime(String isoDate) {
+    try {
+      final date = DateTime.parse(isoDate).toLocal();
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inMinutes < 1) return 'Just now';
+      if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+      if (difference.inHours < 24) return '${difference.inHours}h ago';
+      return DateFormat('MMM d · h:mm a').format(date);
+    } catch (_) {
+      return 'Recently';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
-      appBar: _buildAppBar(),
       body: SafeArea(
         child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.xl,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Greeting & Scan Cards in Row - Responsive with 55/45 ratio
-                IntrinsicHeight(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 55,
-                        child: _buildGreetingCard(),
-                      ),
-                      SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        flex: 45,
-                        child: _buildScanCard(),
-                      ),
-                    ],
-                  ),
+          padding: EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTopBar(),
+              SizedBox(height: AppSpacing.lg),
+              Text(
+                '${_greeting()}, ${_displayName()}',
+                style: AppTextStyles.displayHero.copyWith(
+                  fontSize: 28,
+                  height: 1.0,
+                  letterSpacing: -0.5,
                 ),
-                SizedBox(height: AppSpacing.xxl),
-                _buildQuickStats(),
-                SizedBox(height: AppSpacing.xxl),
-                _buildRecentTransactions(),
-                SizedBox(height: AppSpacing.xxl),
-                _buildNearbyStations(),
+              ),
+              SizedBox(height: AppSpacing.sm),
+              _buildRoleChip(),
+              SizedBox(height: AppSpacing.lg),
+              if (_transactionsError != null) ...[
+                _buildWarningCard(_transactionsError!),
+                SizedBox(height: AppSpacing.md),
               ],
-            ),
-          ),
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNav(),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      automaticallyImplyLeading: false,
-      elevation: 0,
-      backgroundColor: AppColors.white,
-      title: const Text(
-        'FuelProof',
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w800,
-          color: AppColors.brandNavy,
-          letterSpacing: -0.5,
-        ),
-      ),
-      actions: [
-        Padding(
-          padding: EdgeInsets.only(right: AppSpacing.md),
-          child: IconButton(
-            icon: Container(
-              padding: EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.primaryBackground,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.notifications_none,
-                color: AppColors.brandNavy,
-                size: 20,
-              ),
-            ),
-            onPressed: () {},
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGreetingCard() {
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.brandNavy,
-            AppColors.brandNavy.withOpacity(0.85),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppBorderRadius.card),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.brandNavy.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Good ${_getGreeting()}',
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: AppColors.white,
-              letterSpacing: -0.5,
-            ),
-          ),
-          SizedBox(height: AppSpacing.sm),
-          Text(
-            userName,
-            style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.w700,
-              color: AppColors.accentTeal,
-              letterSpacing: -0.5,
-            ),
-          ),
-          SizedBox(height: AppSpacing.md),
-          Text(
-            'Ready to verify your fuel transaction?',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: AppColors.white.withOpacity(0.9),
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScanCard() {
-    return GestureDetector(
-      onTap: _onScanTap,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.accentTeal,
-              AppColors.accentTeal.withOpacity(0.85),
+              if (_pricesError != null) ...[
+                _buildWarningCard(_pricesError!),
+                SizedBox(height: AppSpacing.md),
+              ],
+              ScanToStartCard(onTap: () => _navigateToScreen('/scan-qr')),
+              SizedBox(height: AppSpacing.md),
+              _buildSecondaryActions(),
+              SizedBox(height: AppSpacing.lg),
+              _buildLiveFuelPricesSection(),
+              SizedBox(height: AppSpacing.lg),
+              _buildLiveSessionCard(),
+              SizedBox(height: AppSpacing.lg),
+              if (_errorMessage != null) _buildErrorCard(),
+              if (_errorMessage != null) SizedBox(height: AppSpacing.lg),
+              _buildRecentActivitySection(),
+              SizedBox(height: AppSpacing.xxl),
             ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(AppBorderRadius.card),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.accentTeal.withOpacity(0.2),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            splashColor: Colors.white.withOpacity(0.1),
-            onTap: _onScanTap,
-            borderRadius: BorderRadius.circular(AppBorderRadius.card),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                vertical: AppSpacing.lg,
-                horizontal: AppSpacing.lg,
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(AppSpacing.lg),
-                    decoration: BoxDecoration(
-                      color: AppColors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      Icons.qr_code_2,
-                      color: AppColors.white,
-                      size: 48,
-                    ),
-                  ),
-                  SizedBox(height: AppSpacing.xl),
-                  const Text(
-                    'Scan to Start',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.white,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'Tap to scan a dispenser QR',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: AppColors.white.withOpacity(0.95),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _navigateToScreen('/scan-qr'),
+        backgroundColor: AppColors.accentTeal,
+        foregroundColor: AppColors.white,
+        icon: const Icon(Icons.qr_code_scanner_rounded),
+        label: const Text('Scan QR'),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      bottomNavigationBar: const AppBottomNavigationBar(currentIndex: 0),
     );
   }
 
-  Widget _buildQuickStats() {
+  Widget _buildTopBar() {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
-          child: _buildStatCard('25.5 L', 'Today', AppColors.brandNavy),
+        Text(
+          'FuelProof',
+          style: AppTextStyles.sectionHeading.copyWith(
+            fontSize: 24,
+            letterSpacing: -1.1,
+          ),
         ),
-        SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: _buildStatCard('3', 'Verified', AppColors.accentTeal),
+        IconButton(
+          onPressed: () => _navigateToScreen('/notifications'),
+          icon: Icon(
+            Icons.notifications_none_rounded,
+            color: AppColors.primaryText,
+            size: 30,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildStatCard(String value, String label, Color color) {
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppBorderRadius.card),
-        border: Border.all(color: AppColors.divider, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: color,
-              letterSpacing: -0.3,
-            ),
-          ),
-          SizedBox(height: AppSpacing.sm),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: AppColors.secondaryText,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentTransactions() {
+  Widget _buildSecondaryActions() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Recent Transactions',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryText,
+            Expanded(
+              child: _buildSmallActionCard(
+                icon: Icons.qr_code_scanner_rounded,
+                label: 'Scan QR',
+                onTap: () => _navigateToScreen('/scan-qr'),
               ),
             ),
-            Text(
-              'View all',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.accentTeal,
+            SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildSmallActionCard(
+                icon: Icons.location_on_rounded,
+                label: 'Find Stations',
+                onTap: () => _navigateToScreen('/station-finder'),
               ),
             ),
           ],
         ),
-        SizedBox(height: AppSpacing.lg),
-        Column(
-          children: recentTransactions.asMap().entries.map((entry) {
-            return Padding(
-              padding: EdgeInsets.only(bottom: AppSpacing.md),
-              child: _buildTransactionTile(entry.value),
-            );
-          }).toList(),
+        SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSmallActionCard(
+                icon: Icons.directions_car_rounded,
+                label: 'My Vehicles',
+                onTap: () => _navigateToScreen('/fleet-vehicles'),
+              ),
+            ),
+            SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildSmallActionCard(
+                icon: Icons.compare_arrows_rounded,
+                label: 'Price Compare',
+                onTap: () => _navigateToScreen('/price-compare'),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildTransactionTile(Map<String, dynamic> transaction) {
+  Widget _buildRoleChip() {
     return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.tealLight,
+        borderRadius: BorderRadius.circular(AppBorderRadius.pill),
+      ),
+      child: Text(
+        _roleLabel(),
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.accentTeal,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorCard() {
+    return Container(
+      width: double.infinity,
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: AppColors.alertLight,
         borderRadius: BorderRadius.circular(AppBorderRadius.card),
-        border: Border.all(color: AppColors.divider.withOpacity(0.5), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Row(
         children: [
-          Container(
-            padding: EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.accentTeal.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              transaction['icon'],
-              color: AppColors.accentTeal,
-              size: 20,
-            ),
-          ),
-          SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  transaction['station'],
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryText,
-                  ),
-                ),
-                SizedBox(height: AppSpacing.xs),
-                Text(
-                  transaction['date'],
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                transaction['litres'],
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.brandNavy,
-                ),
-              ),
-              SizedBox(height: AppSpacing.xs),
-              Text(
-                transaction['amount'],
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.accentTeal,
-                ),
-              ),
-            ],
-          ),
+          Icon(Icons.warning_amber_rounded, color: AppColors.alert),
+          SizedBox(width: AppSpacing.sm),
+          Expanded(child: Text(_errorMessage!, style: AppTextStyles.body)),
+          TextButton(onPressed: _loadDashboardData, child: Text('Retry')),
         ],
       ),
     );
   }
 
-  Widget _buildNearbyStations() {
+  Widget _buildWarningCard(String message) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.warningLight,
+        borderRadius: BorderRadius.circular(AppBorderRadius.card),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline_rounded, color: AppColors.warning),
+          SizedBox(width: AppSpacing.sm),
+          Expanded(child: Text(message, style: AppTextStyles.body)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveFuelPricesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Nearby Stations',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.primaryText,
-          ),
+        Text(
+          'Live Fuel Prices',
+          style: AppTextStyles.sectionHeading.copyWith(fontSize: 24),
         ),
-        SizedBox(height: AppSpacing.lg),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: nearbyStations.map((station) {
-              return Padding(
-                padding: EdgeInsets.only(right: AppSpacing.md),
-                child: _buildStationCard(station),
-              );
-            }).toList(),
+        SizedBox(height: AppSpacing.md),
+        if (_isLoading)
+          const Center(child: CircularProgressIndicator())
+        else if (_fuelPrices.isEmpty)
+          _emptySection('No live prices available')
+        else
+          SizedBox(
+            height: 132,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _fuelPrices.length,
+              separatorBuilder: (_, _) => SizedBox(width: AppSpacing.md),
+              itemBuilder: (context, index) {
+                final price = _fuelPrices[index];
+                return Container(
+                  width: 220,
+                  padding: EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(AppBorderRadius.card),
+                    border: Border.all(
+                      color: AppColors.softGray.withValues(alpha: 0.45),
+                    ),
+                    boxShadow: AppShadows.subtleList,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xs,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.tealLight,
+                          borderRadius: BorderRadius.circular(
+                            AppBorderRadius.pill,
+                          ),
+                        ),
+                        child: Text(
+                          _fuelTypeLabel(price.fuelType),
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.accentTeal,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: AppSpacing.sm),
+                      Text(
+                        '${_formatCurrency(price.pricePerLitre)} / L',
+                        style: AppTextStyles.cardTitle.copyWith(
+                          color: AppColors.brandNavy,
+                          fontSize: 18,
+                        ),
+                      ),
+                      SizedBox(height: AppSpacing.xs),
+                      Text(
+                        _formatUpdatedDate(price.effectiveFrom),
+                        style: AppTextStyles.caption,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
-        ),
       ],
     );
   }
 
-  Widget _buildStationCard(Map<String, String> station) {
+  Widget _emptySection(String message) {
     return Container(
-      width: 160,
+      width: double.infinity,
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppBorderRadius.card),
-        border: Border.all(color: AppColors.divider, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+        border: Border.all(color: AppColors.softGray.withValues(alpha: 0.45)),
+      ),
+      child: Text(message, style: AppTextStyles.body),
+    );
+  }
+
+  Widget _buildSmallActionCard({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppBorderRadius.card),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.md,
           ),
-        ],
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(AppBorderRadius.card),
+            border: Border.all(
+              color: AppColors.softGray.withValues(alpha: 0.45),
+            ), // UPDATED: Replaced withOpacity with withValues
+            boxShadow: AppShadows.subtleList,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: AppColors.accentTeal, size: 18),
+              SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  label,
+                  style: AppTextStyles.cardTitle.copyWith(fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLiveSessionCard() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppBorderRadius.card),
+        border: Border.all(
+          color: AppColors.softGray.withValues(alpha: 0.45),
+        ), // UPDATED: Replaced withOpacity with withValues
+        boxShadow: AppShadows.subtleList,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.xs,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.accentTeal.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppBorderRadius.pill),
-            ),
-            child: Text(
-              station['distance']!,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppColors.accentTeal,
-                letterSpacing: 0.5,
-              ),
-            ),
+          Text('Active Session', style: AppTextStyles.cardTitle),
+          SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              _metric('12.5 L', 'Fuel', AppColors.accentTeal),
+              SizedBox(width: AppSpacing.md),
+              _metric('580 PKR', 'Cost', AppColors.brandNavy),
+              SizedBox(width: AppSpacing.md),
+              _metric('02:15', 'Time', AppColors.secondaryText),
+            ],
           ),
           SizedBox(height: AppSpacing.md),
-          Text(
-            station['name']!,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primaryText,
-              height: 1.3,
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => _navigateToScreen('/live-session'),
+              child: Text(
+                'View Live Session',
+                style: AppTextStyles.cardTitle.copyWith(color: AppColors.white),
+              ),
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          SizedBox(height: AppSpacing.sm),
-          Text(
-            station['address']!,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w400,
-              color: AppColors.secondaryText,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.divider, width: 1),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
+  Widget _metric(String value, String label, Color color) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value, style: AppTextStyles.cardTitle.copyWith(color: color)),
+          SizedBox(height: AppSpacing.xs),
+          Text(label, style: AppTextStyles.caption),
         ],
       ),
-      child: BottomNavigationBar(
-        currentIndex: _selectedNavIndex,
-        onTap: _onNavItemTap,
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        selectedItemColor: AppColors.accentTeal,
-        unselectedItemColor: AppColors.secondaryText,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        selectedLabelStyle: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
+    );
+  }
+
+  Widget _buildRecentActivitySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Recent Activity',
+          style: AppTextStyles.sectionHeading.copyWith(fontSize: 24),
         ),
-        unselectedLabelStyle: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
+        SizedBox(height: AppSpacing.md),
+        if (_isLoading)
+          const Center(child: CircularProgressIndicator())
+        else if (_recentTransactions.isEmpty)
+          _emptySection('No transactions yet')
+        else
+          ..._recentTransactions.map(
+            (transaction) => Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.md),
+              child: _activityTile(
+                station:
+                    transaction.stationId ??
+                    _fuelTypeLabel(transaction.fuelType),
+                detail:
+                    '${transaction.litresDispensed.toStringAsFixed(2)} L • ${_formatCurrency(transaction.totalAmount)}',
+                time: _formatRelativeTime(transaction.createdAt),
+                status: _transactionStatusLabel(transaction.status),
+                statusColor: _transactionStatusColor(transaction.status),
+                icon: _fuelTypeIcon(transaction.fuelType),
+                onTap: () => Navigator.of(context).pushNamed(
+                  '/transaction-detail',
+                  arguments: {'transactionId': transaction.id},
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _activityTile({
+    required String station,
+    required String detail,
+    required String time,
+    required String status,
+    required Color statusColor,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppBorderRadius.card),
+        child: Container(
+          padding: EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(AppBorderRadius.card),
+            border: Border.all(
+              color: AppColors.softGray.withValues(alpha: 0.45),
+            ),
+            boxShadow: AppShadows.subtleList,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.tealLight,
+                  borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                ),
+                child: Icon(icon, color: AppColors.accentTeal, size: 20),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(station, style: AppTextStyles.cardTitle),
+                    SizedBox(height: AppSpacing.xs),
+                    Text(detail, style: AppTextStyles.caption),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppBorderRadius.pill),
+                    ),
+                    child: Text(
+                      status,
+                      style: AppTextStyles.caption.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: AppSpacing.xs),
+                  Text(time, style: AppTextStyles.caption),
+                ],
+              ),
+            ],
+          ),
         ),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined, size: 22),
-            activeIcon: Icon(Icons.home, size: 22),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.qr_code_2, size: 22),
-            label: 'Scan',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long_outlined, size: 22),
-            activeIcon: Icon(Icons.receipt_long, size: 22),
-            label: 'History',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline, size: 22),
-            activeIcon: Icon(Icons.person, size: 22),
-            label: 'Profile',
-          ),
-        ],
       ),
     );
   }

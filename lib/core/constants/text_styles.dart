@@ -3,8 +3,8 @@ import 'app_colors.dart';
 
 class AppTextStyles {
   // Display / Hero - 32px, 700
-  static const TextStyle displayHero = TextStyle(
-    fontFamily: '-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif',
+  static TextStyle get displayHero => TextStyle(
+    fontFamily: 'Inter',
     fontSize: 32,
     fontWeight: FontWeight.w700,
     color: AppColors.primaryText,
@@ -12,8 +12,8 @@ class AppTextStyles {
   );
 
   // Section Heading - 20px, 600
-  static const TextStyle sectionHeading = TextStyle(
-    fontFamily: '-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif',
+  static TextStyle get sectionHeading => TextStyle(
+    fontFamily: 'Inter',
     fontSize: 20,
     fontWeight: FontWeight.w600,
     color: AppColors.primaryText,
@@ -21,8 +21,8 @@ class AppTextStyles {
   );
 
   // Card Title - 16px, 600
-  static const TextStyle cardTitle = TextStyle(
-    fontFamily: '-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif',
+  static TextStyle get cardTitle => TextStyle(
+    fontFamily: 'Inter',
     fontSize: 16,
     fontWeight: FontWeight.w600,
     color: AppColors.primaryText,
@@ -30,8 +30,8 @@ class AppTextStyles {
   );
 
   // Body - 14px, 400
-  static const TextStyle body = TextStyle(
-    fontFamily: '-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif',
+  static TextStyle get body => TextStyle(
+    fontFamily: 'Inter',
     fontSize: 14,
     fontWeight: FontWeight.w400,
     color: AppColors.secondaryText,
@@ -39,8 +39,8 @@ class AppTextStyles {
   );
 
   // Caption / Label - 12px, 400
-  static const TextStyle caption = TextStyle(
-    fontFamily: '-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif',
+  static TextStyle get caption => TextStyle(
+    fontFamily: 'Inter',
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: AppColors.secondaryText,
@@ -48,8 +48,8 @@ class AppTextStyles {
   );
 
   // Live Data (numbers) - 64px, 700, Navy
-  static const TextStyle liveDataHero = TextStyle(
-    fontFamily: '-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif',
+  static TextStyle get liveDataHero => TextStyle(
+    fontFamily: 'Inter',
     fontSize: 64,
     fontWeight: FontWeight.w700,
     color: AppColors.brandNavy,
@@ -57,8 +57,8 @@ class AppTextStyles {
   );
 
   // Greeting text - 20px, 600
-  static const TextStyle greetingText = TextStyle(
-    fontFamily: '-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif',
+  static TextStyle get greetingText => TextStyle(
+    fontFamily: 'Inter',
     fontSize: 20,
     fontWeight: FontWeight.w600,
     color: AppColors.primaryText,

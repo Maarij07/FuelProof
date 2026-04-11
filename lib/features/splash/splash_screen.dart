@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/services/token_manager.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key}); // UPDATED
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _slideController;
-  late Animation<Offset> _slideAnimation;
+class _SplashScreenState extends State<SplashScreen> {
+  final TokenManager _tokenManager = TokenManager();
 
   @override
   void initState() {
@@ -36,14 +35,13 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _navigateAfterSplash() async {
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future.delayed(const Duration(milliseconds: 1800));
+    final isLoggedIn = await _tokenManager.isLoggedIn();
+
     if (mounted) {
-      // Start slide animation
-      await _slideController.forward();
-      if (mounted) {
-        // Navigate based on auth state
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
+      Navigator.of(
+        context,
+      ).pushReplacementNamed(isLoggedIn ? '/home' : '/auth');
     }
   }
 
@@ -57,8 +55,14 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      body: SlideTransition(
-        position: _slideAnimation,
+      body: FadeTransition(
+        opacity: Tween<double>(begin: 0, end: 1).animate(
+          CurvedAnimation(
+            parent:
+                ModalRoute.of(context)?.animation ?? AlwaysStoppedAnimation(1),
+            curve: Curves.easeInOut,
+          ),
+        ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -77,11 +81,8 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
               SizedBox(height: AppSpacing.xl),
+
               // Brand text
-              Text(
-                'FuelProof',
-                style: Theme.of(context).textTheme.displayLarge,
-              ),
             ],
           ),
         ),
