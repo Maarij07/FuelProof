@@ -9,33 +9,56 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _slideController;
+  late Animation<Offset> _slideAnimation;
+
   @override
   void initState() {
     super.initState();
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(-1.5, 0),
+    ).animate(
+      CurvedAnimation(
+        parent: _slideController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
     _navigateAfterSplash();
   }
 
   void _navigateAfterSplash() async {
-    await Future.delayed(const Duration(milliseconds: 1800));
+    await Future.delayed(const Duration(milliseconds: 1200));
     if (mounted) {
-      // Navigate based on auth state - for now navigate to home
-      // TODO: Implement auth state check
-      Navigator.of(context).pushReplacementNamed('/home');
+      // Start slide animation
+      await _slideController.forward();
+      if (mounted) {
+        // Navigate based on auth state
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
-      body: FadeTransition(
-        opacity: Tween<double>(begin: 0, end: 1).animate(
-          CurvedAnimation(
-            parent: ModalRoute.of(context)?.animation ?? AlwaysStoppedAnimation(1),
-            curve: Curves.easeInOut,
-          ),
-        ),
+      body: SlideTransition(
+        position: _slideAnimation,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -49,7 +72,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Image.asset(
-                  'assets/images/logo.png',
+                  'logo.png',
                   fit: BoxFit.contain,
                 ),
               ),
