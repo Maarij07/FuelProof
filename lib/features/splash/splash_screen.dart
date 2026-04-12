@@ -16,21 +16,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: Offset.zero,
-      end: const Offset(-1.5, 0),
-    ).animate(
-      CurvedAnimation(
-        parent: _slideController,
-        curve: Curves.easeInOut,
-      ),
-    );
-
     _navigateAfterSplash();
   }
 
@@ -47,7 +32,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    _slideController.dispose();
     super.dispose();
   }
 

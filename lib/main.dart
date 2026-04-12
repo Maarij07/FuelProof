@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'core/constants/app_colors.dart';
+import 'core/services/transaction_sync_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/auth/auth_screen.dart';
@@ -10,6 +12,7 @@ import 'features/auth/otp_verify_screen.dart';
 import 'features/auth/reset_password_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/home/scan_qr_screen.dart';
+import 'features/home/wifi_connect_screen.dart';
 import 'features/home/live_session_screen.dart';
 import 'features/home/transaction_success_screen.dart';
 import 'features/home/transaction_history_screen.dart';
@@ -26,9 +29,11 @@ import 'features/home/fleet_vehicles_screen.dart';
 import 'features/home/fleet_vehicle_detail_screen.dart';
 import 'features/home/fleet_drivers_screen.dart';
 import 'features/home/evidence_capture_screen.dart';
+import 'features/home/reports_screen.dart';
 import 'features/home/ai_chat_screen.dart';
 import 'features/home/profile_screen.dart';
 import 'features/notifications/notification_screen.dart';
+import 'shared/widgets/debug_log_overlay.dart';
 
 class AppThemeController {
   static final ValueNotifier<ThemeMode> themeMode = ValueNotifier(
@@ -36,7 +41,10 @@ class AppThemeController {
   );
 }
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  await TransactionSyncService.instance.init();
   runApp(const MyApp());
 }
 
@@ -56,6 +64,9 @@ class MyApp extends StatelessWidget {
           darkTheme: AppTheme.darkTheme,
           themeMode: mode,
           debugShowCheckedModeBanner: false,
+          builder: (context, child) => Stack(
+            children: [child!, const DebugLogOverlay()],
+          ),
           home: const SplashScreen(),
           routes: {
             '/splash': (context) => const SplashScreen(),
@@ -82,6 +93,7 @@ class MyApp extends StatelessWidget {
             },
             '/home': (context) => const HomeScreen(),
             '/scan-qr': (context) => const ScanQrScreen(),
+            '/wifi-connect': (context) => const WifiConnectScreen(),
             '/live-session': (context) => const LiveSessionScreen(),
             '/transaction-success': (context) {
               final args = ModalRoute.of(context)?.settings.arguments;
@@ -112,6 +124,7 @@ class MyApp extends StatelessWidget {
                   : null;
               return EvidenceCaptureScreen(transactionId: transactionId);
             },
+            '/reports': (context) => const ReportsScreen(),
             '/ai-chat': (context) => const AIChatScreen(),
             '/profile': (context) => const ProfileScreen(),
             '/notifications': (context) => const NotificationScreen(),

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../models/error_models.dart';
+import 'app_logger.dart';
 import 'token_manager.dart';
 
 class ApiClient {
@@ -14,6 +15,7 @@ class ApiClient {
   final TokenManager tokenManager;
 
   ApiClient({required this.tokenManager, Dio? dio}) : _dio = dio ?? Dio() {
+    AppLogger.log('ApiClient', 'Base URL: $baseUrl');
     _setupDio();
   }
 
@@ -23,6 +25,32 @@ class ApiClient {
       connectTimeout: const Duration(milliseconds: _connectionTimeout),
       receiveTimeout: const Duration(milliseconds: _receiveTimeout),
       headers: {'Content-Type': 'application/json'},
+    );
+
+    // Logging interceptor — must be added before the auth interceptor
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          AppLogger.log('API', '→ ${options.method} ${options.path}');
+          return handler.next(options);
+        },
+        onResponse: (response, handler) {
+          AppLogger.log(
+            'API',
+            '← ${response.statusCode} ${response.requestOptions.path}',
+          );
+          return handler.next(response);
+        },
+        onError: (error, handler) {
+          final status = error.response?.statusCode ?? '?';
+          final body = error.response?.data?.toString() ?? error.message;
+          AppLogger.error(
+            'API',
+            '✗ $status ${error.requestOptions.path} — $body',
+          );
+          return handler.next(error);
+        },
+      ),
     );
 
     // Add request interceptor for token
@@ -171,6 +199,35 @@ class ApiClient {
       if (parser != null) {
         return parser(response.data);
       }
+      return response.data as T;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Multipart file upload (for evidence photos)
+  Future<T> uploadMultipart<T>(
+    String endpoint, {
+    required List<int> fileBytes,
+    required String filename,
+    required String mimeType,
+    Map<String, String>? queryParams,
+    T Function(dynamic)? parser,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          fileBytes,
+          filename: filename,
+          contentType: DioMediaType.parse(mimeType),
+        ),
+      });
+      final response = await _dio.post(
+        endpoint,
+        data: formData,
+        queryParameters: queryParams,
+      );
+      if (parser != null) return parser(response.data);
       return response.data as T;
     } catch (e) {
       throw _handleError(e);

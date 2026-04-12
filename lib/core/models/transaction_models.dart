@@ -181,6 +181,8 @@ enum FraudSeverity {
   medium,
   @JsonValue('high')
   high,
+  @JsonValue('critical')
+  critical,
 }
 
 @JsonSerializable()

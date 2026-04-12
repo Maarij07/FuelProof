@@ -11,6 +11,7 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/repositories/session_repository.dart';
 import '../../core/services/api_client.dart';
+import '../../core/services/app_logger.dart';
 import '../../core/services/token_manager.dart';
 import '../../shared/widgets/app_bottom_navigation_bar.dart';
 
@@ -382,6 +383,64 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
   }
 
   Future<void> _processScan(String qrValue) async {
+    AppLogger.log('QR', 'Scanned value: $qrValue');
+
+    // ── Device nozzle QR: fuelguard://nozzle/{nozzle_id} ────────────────────
+    // Used with the ESP32 WiFi flow. Session is created on the backend while
+    // the phone still has internet, then the user switches to FuelMonitor WiFi.
+    if (qrValue.startsWith('fuelguard://nozzle/')) {
+      // Parse as URI so query params (ssid=, pass=) are stripped automatically.
+      final uri = Uri.tryParse(qrValue);
+      final nozzleId = (uri != null && uri.pathSegments.isNotEmpty)
+          ? uri.pathSegments.last.trim()
+          : qrValue.replaceFirst('fuelguard://nozzle/', '').split('?').first.trim();
+      AppLogger.log('QR', 'Nozzle QR detected — nozzle_id=$nozzleId');
+      if (!mounted) return;
+      await scannerController?.stop();
+      Navigator.of(context).pushReplacementNamed(
+        '/wifi-connect',
+        arguments: {'nozzleId': nozzleId},
+      );
+      return;
+    }
+
+    // ── Old WiFi config QR — tell developer to update QR format ──────────────
+    if (qrValue.startsWith('WIFI:')) {
+      AppLogger.warn('QR', 'Old WiFi QR detected — nozzle_id cannot be determined');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please update the QR code on the device.\n'
+              'The new format should be: fuelguard://nozzle/NZ001\n'
+              '(replace NZ001 with the actual nozzle ID)',
+            ),
+            duration: Duration(seconds: 6),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        await scannerController?.start();
+      }
+      return;
+    }
+
+    // ── Guard against other unrecognised formats ──────────────────────────────
+    if (!qrValue.startsWith('fuelguard://session/')) {
+      AppLogger.warn('QR', 'Unrecognised QR format: $qrValue');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unrecognised QR code. Please scan the QR shown on the fuel dispenser.',
+            ),
+            duration: Duration(seconds: 4),
+          ),
+        );
+        await scannerController?.start();
+      }
+      return;
+    }
+
     setState(() {
       _isProcessingScan = true;
       _scannedCode = qrValue;
@@ -390,15 +449,21 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
     await scannerController?.stop();
 
     try {
+      AppLogger.log('QR', 'Calling /sessions/scan ...');
       final result = await _sessionRepository.scanQrCode(qrValue);
+      AppLogger.log('QR', 'Session OK — id=${result.sessionId} nozzle=${result.nozzleId}');
 
       if (!mounted) return;
 
       Navigator.of(context).pushReplacementNamed(
         '/live-session',
-        arguments: {'sessionId': result.sessionId},
+        arguments: {
+          'sessionId': result.sessionId,
+          'nozzleId': result.nozzleId,
+        },
       );
     } catch (e) {
+      AppLogger.error('QR', 'Scan failed: $e');
       if (!mounted) return;
 
       var message = 'Unable to scan QR code. Please try again.';

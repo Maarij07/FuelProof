@@ -49,6 +49,24 @@ class SessionRepository {
     }
   }
 
+  /// Device-initiated session — called after connecting to ESP32 WiFi and
+  /// querying /info for the nozzle_id. No QR scan involved.
+  Future<SessionScanResponse> startDeviceSession(String nozzleId) async {
+    try {
+      final response = await apiClient.post<Map<String, dynamic>>(
+        '/sessions/start',
+        data: {'nozzle_id': nozzleId},
+      );
+      return SessionScanResponse(
+        sessionId: response['session_id'] as String,
+        nozzleId:  response['nozzle_id']  as String,
+        status:    SessionStatus.active,
+      );
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   AppError _handleError(dynamic error) {
     if (error is AppError) return error;
     return AppError(message: 'An unexpected error occurred');

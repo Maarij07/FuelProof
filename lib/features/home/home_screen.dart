@@ -333,6 +333,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        SizedBox(height: AppSpacing.md),
+        _buildSmallActionCard(
+          icon: Icons.bar_chart_rounded,
+          label: 'My Reports',
+          onTap: () => _navigateToScreen('/reports'),
+        ),
       ],
     );
   }

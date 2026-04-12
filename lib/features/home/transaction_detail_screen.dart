@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -28,6 +31,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   String? _transactionId;
   Transaction? _transaction;
   bool _isFlagged = false;
+  bool _isDownloadingReceipt = false;
 
   @override
   void initState() {
@@ -129,19 +133,33 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   Future<void> _downloadReceipt() async {
     final transaction = _transaction;
-    if (transaction == null) return;
+    if (transaction == null || _isDownloadingReceipt) return;
+
+    setState(() => _isDownloadingReceipt = true);
 
     try {
-      await _transactionRepository.downloadReceipt(transaction.id);
+      final bytes = await _transactionRepository.downloadReceipt(transaction.id);
+      final dir = await getApplicationDocumentsDirectory();
+      final suffix = transaction.id.length > 8
+          ? transaction.id.substring(transaction.id.length - 8)
+          : transaction.id;
+      final file = File('${dir.path}/receipt_$suffix.pdf');
+      await file.writeAsBytes(bytes);
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Receipt requested successfully')),
+        SnackBar(
+          content: Text('Receipt saved: receipt_$suffix.pdf'),
+          duration: const Duration(seconds: 4),
+        ),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Unable to download receipt right now')),
       );
+    } finally {
+      if (mounted) setState(() => _isDownloadingReceipt = false);
     }
   }
 
@@ -168,6 +186,8 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   return 'Medium - Suspicious activity';
                 case FraudSeverity.high:
                   return 'High - Clear tampering';
+                case FraudSeverity.critical:
+                  return 'Critical - Hardware tamper detected';
               }
             }
 
@@ -504,9 +524,20 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: _downloadReceipt,
-                            icon: const Icon(Icons.download_rounded),
-                            label: const Text('Download Receipt'),
+                            onPressed: _isDownloadingReceipt ? null : _downloadReceipt,
+                            icon: _isDownloadingReceipt
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.download_rounded),
+                            label: Text(_isDownloadingReceipt
+                                ? 'Downloading...'
+                                : 'Download Receipt'),
                           ),
                         ),
                         SizedBox(height: AppSpacing.sm),

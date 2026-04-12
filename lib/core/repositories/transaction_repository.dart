@@ -7,6 +7,37 @@ class TransactionRepository {
 
   TransactionRepository({required this.apiClient});
 
+  /// Create a transaction after a hardware session completes
+  Future<Transaction> createTransaction({
+    required String sessionId,
+    required String nozzleId,
+    required String userId,
+    required String fuelType,
+    required double litresDispensed,
+    required double pricePerLitre,
+    String paymentMethod = 'cash',
+    String? vehicleId,
+  }) async {
+    try {
+      final response = await apiClient.post<Map<String, dynamic>>(
+        '/transactions',
+        data: {
+          'session_id': sessionId,
+          'nozzle_id': nozzleId,
+          'user_id': userId,
+          'fuel_type': fuelType,
+          'litres_dispensed': litresDispensed,
+          'price_per_litre': pricePerLitre,
+          'payment_method': paymentMethod,
+          if (vehicleId != null) 'vehicle_id': vehicleId,
+        },
+      );
+      return Transaction.fromJson(response);
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Get current fuel prices
   Future<List<FuelPrice>> getCurrentPrices({String? stationId}) async {
     try {
