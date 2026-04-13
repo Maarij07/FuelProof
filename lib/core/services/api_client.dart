@@ -255,7 +255,8 @@ class ApiClient {
 
     if (error is DioException) {
       final statusCode = error.response?.statusCode;
-      final detail = error.response?.data?['detail'] as String?;
+      final responseData = error.response?.data;
+      final detail = (responseData is Map) ? responseData['detail'] as String? : null;
 
       switch (statusCode) {
         case 400:
