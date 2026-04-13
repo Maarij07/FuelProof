@@ -59,6 +59,8 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
   double    _pricePerLitre = 0.0;
 
   Timer? _pollTimer;
+  Timer? _pollTimeoutTimer;
+  static const Duration _pollTimeout = Duration(minutes: 5);
 
   @override
   void initState() {
@@ -103,6 +105,7 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _pollTimeoutTimer?.cancel();
     _deviceDio.close();
     super.dispose();
   }
@@ -165,11 +168,26 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
 
   void _startPolling() {
     _pollTimer?.cancel();
+    _pollTimeoutTimer?.cancel();
+
     _pollTimer = Timer.periodic(
       const Duration(seconds: 2),
       (_) => _checkDevice(),
     );
     _checkDevice();
+
+    // Give up after 5 minutes — device probably isn't on or WiFi wasn't switched.
+    _pollTimeoutTimer = Timer(_pollTimeout, () {
+      if (!mounted) return;
+      _pollTimer?.cancel();
+      setState(() {
+        _phase    = _Phase.error;
+        _errorMsg =
+            'Could not detect the device after 5 minutes.\n'
+            'Make sure the phone is connected to the FuelMonitor WiFi and '
+            'the device is powered on, then try again.';
+      });
+    });
   }
 
   Future<void> _checkDevice() async {
@@ -178,6 +196,7 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
       await _deviceDio.get<Map<String, dynamic>>('/info');
       // Any successful response means the phone is on FuelMonitor WiFi.
       _pollTimer?.cancel();
+      _pollTimeoutTimer?.cancel();
       AppLogger.log('WiFi', 'ESP32 reachable — navigating to live session');
 
       if (!mounted) return;

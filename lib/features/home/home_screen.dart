@@ -246,8 +246,6 @@ class _HomeScreenState extends State<HomeScreen> {
               SizedBox(height: AppSpacing.lg),
               _buildLiveFuelPricesSection(),
               SizedBox(height: AppSpacing.lg),
-              _buildLiveSessionCard(),
-              SizedBox(height: AppSpacing.lg),
               if (_errorMessage != null) _buildErrorCard(),
               if (_errorMessage != null) SizedBox(height: AppSpacing.lg),
               _buildRecentActivitySection(),
@@ -530,61 +528,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildLiveSessionCard() {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppBorderRadius.card),
-        border: Border.all(
-          color: AppColors.softGray.withValues(alpha: 0.45),
-        ), // UPDATED: Replaced withOpacity with withValues
-        boxShadow: AppShadows.subtleList,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Active Session', style: AppTextStyles.cardTitle),
-          SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              _metric('12.5 L', 'Fuel', AppColors.accentTeal),
-              SizedBox(width: AppSpacing.md),
-              _metric('580 PKR', 'Cost', AppColors.brandNavy),
-              SizedBox(width: AppSpacing.md),
-              _metric('02:15', 'Time', AppColors.secondaryText),
-            ],
-          ),
-          SizedBox(height: AppSpacing.md),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _navigateToScreen('/live-session'),
-              child: Text(
-                'View Live Session',
-                style: AppTextStyles.cardTitle.copyWith(color: AppColors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _metric(String value, String label, Color color) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value, style: AppTextStyles.cardTitle.copyWith(color: color)),
-          SizedBox(height: AppSpacing.xs),
-          Text(label, style: AppTextStyles.caption),
-        ],
       ),
     );
   }

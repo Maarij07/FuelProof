@@ -162,6 +162,8 @@ class HardwareService {
   Timer? _pollTimer;
   bool _tamperAlertFired = false;
   bool _sessionFinished = false;
+  int _consecutivePollFailures = 0;
+  static const int _maxConsecutiveFailures = 10; // 10 s of silence → error
 
   HardwareService({
     required this.apiClient,
@@ -240,8 +242,22 @@ class HardwareService {
         );
         await _finalise(reading);
       }
+      _consecutivePollFailures = 0; // reset on success
     } catch (e) {
-      AppLogger.warn('HW', 'Poll error (transient): $e');
+      _consecutivePollFailures++;
+      AppLogger.warn(
+        'HW',
+        'Poll error ($_consecutivePollFailures/$_maxConsecutiveFailures): $e',
+      );
+      if (_consecutivePollFailures >= _maxConsecutiveFailures &&
+          !_sessionFinished) {
+        _pollTimer?.cancel();
+        AppLogger.error('HW', 'Device unreachable — stopping poll loop');
+        onError(
+          'Lost connection to the device.\n'
+          'Make sure the phone is still on FuelMonitor WiFi.',
+        );
+      }
     }
   }
 

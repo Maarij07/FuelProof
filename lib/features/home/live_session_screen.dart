@@ -257,6 +257,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
     if (transactionId != null) {
       // Immediate sync succeeded — update result with backend transaction ID.
       AppLogger.log('Session', 'Sync complete — transactionId=$transactionId');
+      _wifiSwitchTimer?.cancel();
       setState(() {
         _syncPending = false;
         _showWifiSwitchPrompt = false;
@@ -266,7 +267,15 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
               result.discrepancy.abs() > 0.05,
         );
       });
-      _wifiSwitchTimer?.cancel();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Session recorded successfully.'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } else {
       // Queued for background sync — keep _syncPending = true.
       AppLogger.log('Session', 'Queued for background sync (no internet yet)');
@@ -298,24 +307,71 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
 
   // ── Build ─────────────────────────────────────────────────────────────────────
 
+  // ── Back-button guard ─────────────────────────────────────────────────────────
+
+  Future<bool> _onWillPop() async {
+    // Allow back freely when session hasn't started or is fully done.
+    final sessionActive = !_isInitializing &&
+        _initError == null &&
+        _result == null &&
+        _lastReading != null;
+
+    if (!sessionActive) return true;
+
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Leave session?'),
+        content: const Text(
+          'Fuel is still being dispensed. Leaving now will not record this session.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Stay'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Leave',
+              style: TextStyle(color: AppColors.alert),
+            ),
+          ),
+        ],
+      ),
+    );
+    return leave ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.primaryBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () => Navigator.pop(context),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final nav = Navigator.of(context);
+        if (await _onWillPop()) nav.pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.primaryBackground,
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
+            onPressed: () async {
+              final nav = Navigator.of(context);
+              if (await _onWillPop()) nav.pop();
+            },
+          ),
+          title: Text('Live Session', style: AppTextStyles.sectionHeading),
+          centerTitle: true,
         ),
-        title: Text('Live Session', style: AppTextStyles.sectionHeading),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(AppSpacing.md),
-          child: _buildBody(),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(AppSpacing.md),
+            child: _buildBody(),
+          ),
         ),
       ),
     );
@@ -364,9 +420,17 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
             _buildEvidencePhoto(_result!.capturedImage!),
             SizedBox(height: AppSpacing.lg),
           ],
+          // Sync status / WiFi prompt
+          if (_syncPending) ...[
+            _showWifiSwitchPrompt
+                ? _buildWifiSwitchPrompt()
+                : _buildSyncingBanner(),
+            SizedBox(height: AppSpacing.lg),
+          ],
+          // Primary CTA — always shown once result is available
           if (_result!.transactionId != null)
             _buildViewTransactionButton(_result!.transactionId!)
-          else if (!_syncPending)
+          else
             _buildGoHomeButton(),
         ],
 
@@ -377,13 +441,6 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
             label: 'Capturing session data...',
             isLoading: true,
           ),
-        ],
-
-        if (_syncPending) ...[
-          SizedBox(height: AppSpacing.lg),
-          _showWifiSwitchPrompt
-              ? _buildWifiSwitchPrompt()
-              : _buildSyncingBanner(),
         ],
 
         SizedBox(height: AppSpacing.xl),
