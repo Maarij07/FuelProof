@@ -237,6 +237,7 @@ class _FleetVehiclesScreenState extends State<FleetVehiclesScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text('My Vehicles', style: AppTextStyles.sectionHeading),
         actions: [
           IconButton(

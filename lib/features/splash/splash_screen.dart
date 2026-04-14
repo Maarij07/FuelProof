@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/services/token_manager.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key}); // UPDATED
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -12,6 +14,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   final TokenManager _tokenManager = TokenManager();
+  Timer? _navigationTimer;
 
   @override
   void initState() {
@@ -20,18 +23,20 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _navigateAfterSplash() async {
-    await Future.delayed(const Duration(milliseconds: 1800));
-    final isLoggedIn = await _tokenManager.isLoggedIn();
+    _navigationTimer = Timer(const Duration(milliseconds: 1800), () async {
+      final isLoggedIn = await _tokenManager.isLoggedIn();
 
-    if (mounted) {
-      Navigator.of(
-        context,
-      ).pushReplacementNamed(isLoggedIn ? '/home' : '/auth');
-    }
+      if (mounted) {
+        Navigator.of(
+          context,
+        ).pushReplacementNamed(isLoggedIn ? '/home' : '/auth');
+      }
+    });
   }
 
   @override
   void dispose() {
+    _navigationTimer?.cancel();
     super.dispose();
   }
 
@@ -60,7 +65,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Image.asset(
-                  'logo.png',
+                  'assets/images/logo.png',
                   fit: BoxFit.contain,
                 ),
               ),

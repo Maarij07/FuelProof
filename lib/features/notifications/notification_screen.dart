@@ -58,15 +58,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.primaryBackground,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text(
           'Notifications',
           style: AppTextStyles.sectionHeading.copyWith(fontSize: 24),
         ),
         centerTitle: false,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: AppColors.primaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(

@@ -1,7 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/text_styles.dart';
@@ -10,7 +9,6 @@ import '../../core/models/transaction_models.dart';
 import '../../core/repositories/transaction_repository.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/token_manager.dart';
-import '../../shared/widgets/app_bottom_navigation_bar.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({super.key});
@@ -113,16 +111,17 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     return status.name[0].toUpperCase() + status.name.substring(1);
   }
 
-  Color _statusColor(TransactionStatus status) {
+  Color _statusColor(BuildContext context, TransactionStatus status) {
+    final colorScheme = Theme.of(context).colorScheme;
     switch (status) {
       case TransactionStatus.completed:
-        return AppColors.success;
+        return Colors.green;
       case TransactionStatus.pending:
-        return AppColors.warning;
+        return Colors.orange;
       case TransactionStatus.failed:
-        return AppColors.alert;
+        return colorScheme.error;
       case TransactionStatus.refunded:
-        return AppColors.brandNavy;
+        return colorScheme.secondary;
     }
   }
 
@@ -141,19 +140,21 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final filteredTransactions = _filteredTransactions();
 
     return Scaffold(
-      backgroundColor: AppColors.primaryBackground,
-      bottomNavigationBar: const AppBottomNavigationBar(currentIndex: 1),
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        backgroundColor: AppColors.white,
+        backgroundColor: colorScheme.surface,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () => Navigator.pop(context),
+        automaticallyImplyLeading: false,
+        title: Text(
+          'Transaction History',
+          style: AppTextStyles.sectionHeading.copyWith(
+            color: colorScheme.onSurface,
+          ),
         ),
-        title: Text('Transaction History', style: AppTextStyles.sectionHeading),
         centerTitle: true,
       ),
       body: Column(
@@ -162,7 +163,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             padding: EdgeInsets.all(AppSpacing.md),
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.white,
+                color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(AppBorderRadius.input),
                 boxShadow: AppShadows.subtleList,
               ),
@@ -176,13 +177,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 decoration: InputDecoration(
                   hintText: 'Search by ID, station, vehicle, or fuel type',
                   hintStyle: AppTextStyles.body.copyWith(
-                    color: AppColors.tertiaryText,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                   border: InputBorder.none,
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: AppColors.secondaryText,
-                  ),
+                  prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
                   contentPadding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                 ),
               ),
@@ -211,18 +209,20 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       _selectedFilter = filter;
                     });
                   },
-                  backgroundColor: AppColors.white,
-                  selectedColor: AppColors.accentTeal,
+                  backgroundColor: colorScheme.surface,
+                  selectedColor: colorScheme.primary,
                   labelStyle: AppTextStyles.body.copyWith(
-                    color: isSelected ? AppColors.white : AppColors.primaryText,
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppBorderRadius.pill),
                     side: BorderSide(
                       color: isSelected
-                          ? AppColors.accentTeal
-                          : AppColors.softGray,
+                          ? colorScheme.primary
+                          : colorScheme.outlineVariant,
                     ),
                   ),
                 );
@@ -237,7 +237,14 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage != null
-                ? Center(child: Text(_errorMessage!, style: AppTextStyles.body))
+                ? Center(
+                    child: Text(
+                      _errorMessage!,
+                      style: AppTextStyles.body.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  )
                 : filteredTransactions.isEmpty
                 ? Center(
                     child: Column(
@@ -246,13 +253,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                         Icon(
                           Icons.receipt_long,
                           size: 64,
-                          color: AppColors.softGray,
+                          color: colorScheme.outline,
                         ),
                         SizedBox(height: AppSpacing.md),
                         Text(
                           'No transactions found',
                           style: AppTextStyles.body.copyWith(
-                            color: AppColors.secondaryText,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -275,7 +282,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                             child: Container(
                               padding: EdgeInsets.all(AppSpacing.md),
                               decoration: BoxDecoration(
-                                color: AppColors.white,
+                                color: colorScheme.surface,
                                 borderRadius: BorderRadius.circular(
                                   AppBorderRadius.card,
                                 ),
@@ -304,8 +311,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                               _fuelLabel(transaction.fuelType),
                                               style: AppTextStyles.caption
                                                   .copyWith(
-                                                    color:
-                                                        AppColors.secondaryText,
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
                                                   ),
                                             ),
                                           ],
@@ -318,6 +325,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: _statusColor(
+                                            context,
                                             transaction.status,
                                           ).withValues(alpha: 0.12),
                                           borderRadius: BorderRadius.circular(
@@ -328,6 +336,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                           _statusLabel(transaction.status),
                                           style: AppTextStyles.caption.copyWith(
                                             color: _statusColor(
+                                              context,
                                               transaction.status,
                                             ),
                                             fontWeight: FontWeight.w600,
@@ -349,8 +358,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                             'Volume',
                                             style: AppTextStyles.caption
                                                 .copyWith(
-                                                  color:
-                                                      AppColors.secondaryText,
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
                                                 ),
                                           ),
                                           SizedBox(height: AppSpacing.xs),
@@ -358,7 +367,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                             '${transaction.litresDispensed.toStringAsFixed(1)} L',
                                             style: AppTextStyles.body.copyWith(
                                               fontWeight: FontWeight.w600,
-                                              color: AppColors.primaryText,
+                                              color: colorScheme.onSurface,
                                             ),
                                           ),
                                         ],
@@ -371,8 +380,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                             'Amount',
                                             style: AppTextStyles.caption
                                                 .copyWith(
-                                                  color:
-                                                      AppColors.secondaryText,
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
                                                 ),
                                           ),
                                           SizedBox(height: AppSpacing.xs),
@@ -382,7 +391,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                             ),
                                             style: AppTextStyles.body.copyWith(
                                               fontWeight: FontWeight.w600,
-                                              color: AppColors.accentTeal,
+                                              color: colorScheme.primary,
                                             ),
                                           ),
                                         ],
@@ -395,8 +404,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                             'Date',
                                             style: AppTextStyles.caption
                                                 .copyWith(
-                                                  color:
-                                                      AppColors.secondaryText,
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
                                                 ),
                                           ),
                                           SizedBox(height: AppSpacing.xs),
@@ -404,7 +413,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                             _formatDate(transaction.createdAt),
                                             style: AppTextStyles.caption
                                                 .copyWith(
-                                                  color: AppColors.primaryText,
+                                                  color: colorScheme.onSurface,
                                                   fontWeight: FontWeight.w600,
                                                 ),
                                           ),

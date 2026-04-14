@@ -130,6 +130,7 @@ class _CheapestFuelScreenState extends State<CheapestFuelScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text(
           'Cheapest Fuel Finder',
           style: AppTextStyles.sectionHeading,

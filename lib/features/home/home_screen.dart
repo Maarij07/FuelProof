@@ -11,7 +11,6 @@ import '../../core/repositories/auth_repository.dart';
 import '../../core/repositories/transaction_repository.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/token_manager.dart';
-import '../../shared/widgets/app_bottom_navigation_bar.dart';
 import '../../shared/widgets/dashboard_widgets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -21,7 +20,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with AutomaticKeepAliveClientMixin {
   late final TokenManager _tokenManager;
   late final ApiClient _apiClient;
   late final AuthRepository _authRepository;
@@ -34,6 +34,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _errorMessage;
   String? _transactionsError;
   String? _pricesError;
+  bool _hasLoadedDashboardData = false;
+  Future<void>? _dashboardLoadFuture;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -45,11 +50,23 @@ class _HomeScreenState extends State<HomeScreen> {
       tokenManager: _tokenManager,
     );
     _transactionRepository = TransactionRepository(apiClient: _apiClient);
-    _loadDashboardData();
+    _loadDashboardDataOnce();
   }
 
   void _navigateToScreen(String routeName) {
     Navigator.of(context).pushNamed(routeName);
+  }
+
+  Future<void> _loadDashboardDataOnce({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      if (_hasLoadedDashboardData) return;
+      final inFlight = _dashboardLoadFuture;
+      if (inFlight != null) return inFlight;
+    }
+
+    final future = _loadDashboardData();
+    _dashboardLoadFuture = future;
+    await future;
   }
 
   Future<void> _loadDashboardData() async {
@@ -93,6 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _fuelPrices = fuelPrices;
         _isLoading = false;
       });
+      _hasLoadedDashboardData = true;
     } catch (e) {
       if (!mounted) return;
 
@@ -100,6 +118,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _errorMessage = 'Unable to load your account data right now';
         _isLoading = false;
       });
+    } finally {
+      _dashboardLoadFuture = null;
     }
   }
 
@@ -112,8 +132,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _displayName() {
     final fullName = _user?.fullName.trim();
-    if (fullName == null || fullName.isEmpty) return 'Ayesha';
-    return fullName.split(' ').first;
+    if (fullName == null || fullName.isEmpty) return 'User';
+    return fullName;
   }
 
   String _roleLabel() {
@@ -211,8 +231,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: AppColors.primaryBackground,
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(AppSpacing.lg),
@@ -256,22 +279,22 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToScreen('/scan-qr'),
-        backgroundColor: AppColors.accentTeal,
-        foregroundColor: AppColors.white,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
         icon: const Icon(Icons.qr_code_scanner_rounded),
         label: const Text('Scan QR'),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: const AppBottomNavigationBar(currentIndex: 0),
     );
   }
 
   Widget _buildTopBar() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          'FuelProof',
+          'FuelGuard',
           style: AppTextStyles.sectionHeading.copyWith(
             fontSize: 24,
             letterSpacing: -1.1,
@@ -281,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: () => _navigateToScreen('/notifications'),
           icon: Icon(
             Icons.notifications_none_rounded,
-            color: AppColors.primaryText,
+            color: colorScheme.onSurface,
             size: 30,
           ),
         ),
@@ -342,19 +365,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRoleChip() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: AppColors.tealLight,
+        color: colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(AppBorderRadius.pill),
       ),
       child: Text(
         _roleLabel(),
         style: AppTextStyles.caption.copyWith(
-          color: AppColors.accentTeal,
+          color: colorScheme.onSecondaryContainer,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -362,38 +386,59 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildErrorCard() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.alertLight,
+        color: colorScheme.errorContainer,
         borderRadius: BorderRadius.circular(AppBorderRadius.card),
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber_rounded, color: AppColors.alert),
+          Icon(Icons.warning_amber_rounded, color: colorScheme.error),
           SizedBox(width: AppSpacing.sm),
-          Expanded(child: Text(_errorMessage!, style: AppTextStyles.body)),
-          TextButton(onPressed: _loadDashboardData, child: Text('Retry')),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: AppTextStyles.body.copyWith(
+                color: colorScheme.onErrorContainer,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => _loadDashboardDataOnce(forceRefresh: true),
+            child: Text('Retry'),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildWarningCard(String message) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.warningLight,
+        color: colorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(AppBorderRadius.card),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.18)),
+        border: Border.all(
+          color: colorScheme.secondary.withValues(alpha: 0.24),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline_rounded, color: AppColors.warning),
+          Icon(Icons.info_outline_rounded, color: colorScheme.secondary),
           SizedBox(width: AppSpacing.sm),
-          Expanded(child: Text(message, style: AppTextStyles.body)),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTextStyles.body.copyWith(
+                color: colorScheme.onSecondaryContainer,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -420,15 +465,16 @@ class _HomeScreenState extends State<HomeScreen> {
               itemCount: _fuelPrices.length,
               separatorBuilder: (_, _) => SizedBox(width: AppSpacing.md),
               itemBuilder: (context, index) {
+                final colorScheme = Theme.of(context).colorScheme;
                 final price = _fuelPrices[index];
                 return Container(
                   width: 220,
                   padding: EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.white,
+                    color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(AppBorderRadius.card),
                     border: Border.all(
-                      color: AppColors.softGray.withValues(alpha: 0.45),
+                      color: colorScheme.outlineVariant,
                     ),
                     boxShadow: AppShadows.subtleList,
                   ),
@@ -441,7 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           vertical: AppSpacing.xs,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.tealLight,
+                          color: colorScheme.secondaryContainer,
                           borderRadius: BorderRadius.circular(
                             AppBorderRadius.pill,
                           ),
@@ -449,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Text(
                           _fuelTypeLabel(price.fuelType),
                           style: AppTextStyles.caption.copyWith(
-                            color: AppColors.accentTeal,
+                            color: colorScheme.onSecondaryContainer,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -458,7 +504,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         '${_formatCurrency(price.pricePerLitre)} / L',
                         style: AppTextStyles.cardTitle.copyWith(
-                          color: AppColors.brandNavy,
+                          color: colorScheme.onSurface,
                           fontSize: 18,
                         ),
                       ),
@@ -478,15 +524,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _emptySection(String message) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppBorderRadius.card),
-        border: Border.all(color: AppColors.softGray.withValues(alpha: 0.45)),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
-      child: Text(message, style: AppTextStyles.body),
+      child: Text(
+        message,
+        style: AppTextStyles.body.copyWith(color: colorScheme.onSurfaceVariant),
+      ),
     );
   }
 
@@ -495,6 +545,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required String label,
     required VoidCallback onTap,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -506,22 +557,25 @@ class _HomeScreenState extends State<HomeScreen> {
             vertical: AppSpacing.md,
           ),
           decoration: BoxDecoration(
-            color: AppColors.white,
+            color: colorScheme.surface,
             borderRadius: BorderRadius.circular(AppBorderRadius.card),
             border: Border.all(
-              color: AppColors.softGray.withValues(alpha: 0.45),
-            ), // UPDATED: Replaced withOpacity with withValues
+              color: colorScheme.outlineVariant,
+            ),
             boxShadow: AppShadows.subtleList,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: AppColors.accentTeal, size: 18),
+              Icon(icon, color: colorScheme.primary, size: 18),
               SizedBox(width: AppSpacing.sm),
               Flexible(
                 child: Text(
                   label,
-                  style: AppTextStyles.cardTitle.copyWith(fontSize: 13),
+                  style: AppTextStyles.cardTitle.copyWith(
+                    fontSize: 13,
+                    color: colorScheme.onSurface,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -579,6 +633,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required VoidCallback onTap,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -587,10 +642,10 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Container(
           padding: EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            color: AppColors.white,
+            color: colorScheme.surface,
             borderRadius: BorderRadius.circular(AppBorderRadius.card),
             border: Border.all(
-              color: AppColors.softGray.withValues(alpha: 0.45),
+              color: colorScheme.outlineVariant,
             ),
             boxShadow: AppShadows.subtleList,
           ),
@@ -600,10 +655,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.tealLight,
+                  color: colorScheme.secondaryContainer,
                   borderRadius: BorderRadius.circular(AppBorderRadius.small),
                 ),
-                child: Icon(icon, color: AppColors.accentTeal, size: 20),
+                child: Icon(icon, color: colorScheme.onSecondaryContainer, size: 20),
               ),
               SizedBox(width: AppSpacing.sm),
               Expanded(

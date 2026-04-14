@@ -176,10 +176,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
         title: Text('Reports', style: AppTextStyles.sectionHeading),
         centerTitle: true,
         actions: [

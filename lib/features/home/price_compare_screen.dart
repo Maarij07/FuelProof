@@ -105,6 +105,7 @@ class _PriceCompareScreenState extends State<PriceCompareScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text('Price Compare', style: AppTextStyles.sectionHeading),
         actions: [
           IconButton(

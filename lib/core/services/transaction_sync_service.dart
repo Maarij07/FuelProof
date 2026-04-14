@@ -77,7 +77,7 @@ class TransactionSyncService {
 
     // Use sessionId as key — idempotent if saved twice.
     final key = sessionId;
-    await box.put(key, {
+    final payload = <String, dynamic>{
       'session_id':       sessionId,
       'nozzle_id':        nozzleId,
       'user_id':          userId,
@@ -87,10 +87,14 @@ class TransactionSyncService {
       'price_per_litre':  pricePerLitre,
       'tamper_detected':  tamperDetected,
       'payment_method':   paymentMethod,
-      if (vehicleId != null) 'vehicle_id': vehicleId,
       'photo_b64':        photo != null ? base64Encode(photo) : null,
       'queued_at':        DateTime.now().toIso8601String(),
-    });
+    };
+    if (vehicleId != null) {
+      payload['vehicle_id'] = vehicleId;
+    }
+
+    await box.put(key, payload);
     AppLogger.log('Sync', 'Queued locally: $key (total=${box.length})');
 
     // Attempt immediate sync (may fail if still on FuelMonitor WiFi).

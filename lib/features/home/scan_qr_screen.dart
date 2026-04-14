@@ -145,11 +145,8 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: AppColors.white,
+        automaticallyImplyLeading: false,
         title: Text('Scan QR Code', style: AppTextStyles.sectionHeading),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
         actions: [
           if (_isScanPermissionGranted)
             IconButton(
@@ -279,7 +276,7 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
             ),
             SizedBox(height: AppSpacing.md),
             Text(
-              'FuelProof needs camera access to scan QR codes at fuel stations. Please enable camera permission.',
+              'FuelGuard needs camera access to scan QR codes at fuel stations. Please enable camera permission.',
               style: AppTextStyles.body.copyWith(
                 color: AppColors.secondaryText,
               ),
@@ -396,8 +393,10 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
           : qrValue.replaceFirst('fuelguard://nozzle/', '').split('?').first.trim();
       AppLogger.log('QR', 'Nozzle QR detected — nozzle_id=$nozzleId');
       if (!mounted) return;
+      final navigator = Navigator.of(context);
       await scannerController?.stop();
-      Navigator.of(context).pushReplacementNamed(
+      if (!mounted) return;
+      navigator.pushReplacementNamed(
         '/wifi-connect',
         arguments: {'nozzleId': nozzleId},
       );

@@ -172,7 +172,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   ),
                   SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Set up secure access to FuelProof',
+                    'Set up secure access to FuelGuard',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: AppColors.secondaryText,
                     ),

@@ -212,6 +212,7 @@ class _FleetDriversScreenState extends State<FleetDriversScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text(
           _targetVehicleId == null ? 'Drivers' : 'Select Driver',
           style: AppTextStyles.sectionHeading,

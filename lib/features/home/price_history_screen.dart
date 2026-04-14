@@ -106,6 +106,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text('Price History', style: AppTextStyles.sectionHeading),
       ),
       body: ListView(

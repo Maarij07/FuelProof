@@ -89,6 +89,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text('Favorite Stations', style: AppTextStyles.sectionHeading),
       ),
       body: _isLoading

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/text_styles.dart';
@@ -9,7 +8,6 @@ import '../../core/models/error_models.dart';
 import '../../core/repositories/chat_repository.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/token_manager.dart';
-import '../../shared/widgets/app_bottom_navigation_bar.dart';
 
 class ChatMessage {
   final String id;
@@ -61,7 +59,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
       ChatMessage(
         id: 'welcome',
         content:
-            'Hello! I am the FuelProof support assistant. Ask me anything about fueling, transactions, or account issues.',
+            'Hello! I am the FuelGuard support assistant. Ask me anything about fueling, transactions, or account issues.',
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -143,7 +141,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 ? e.detail!
                 : 'Unable to reach support. Please try again.',
           ),
-          backgroundColor: AppColors.alert,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     }
@@ -155,20 +153,22 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: AppColors.primaryBackground,
-      bottomNavigationBar: const AppBottomNavigationBar(currentIndex: 2),
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        backgroundColor: AppColors.white,
+        backgroundColor: colorScheme.surface,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Support Chat', style: AppTextStyles.cardTitle),
+            Text(
+              'Support Chat',
+              style: AppTextStyles.cardTitle.copyWith(
+                color: colorScheme.onSurface,
+              ),
+            ),
             SizedBox(height: AppSpacing.xs),
             Row(
               children: [
@@ -176,7 +176,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                   width: 8,
                   height: 8,
                   decoration: const BoxDecoration(
-                    color: AppColors.success,
+                    color: Colors.green,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -184,7 +184,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 Text(
                   _isSending ? 'Assistant replying...' : 'AI Assistant Online',
                   style: AppTextStyles.caption.copyWith(
-                    color: AppColors.success,
+                    color: Colors.green,
                   ),
                 ),
               ],
@@ -214,9 +214,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
                   return ActionChip(
                     label: Text(prompt),
                     onPressed: _isSending ? null : () => _sendMessage(prompt),
-                    backgroundColor: AppColors.white,
+                    backgroundColor: colorScheme.surface,
                     labelStyle: AppTextStyles.caption.copyWith(
-                      color: AppColors.brandNavy,
+                      color: colorScheme.secondary,
                       fontWeight: FontWeight.w600,
                     ),
                   );
@@ -235,7 +235,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
             ),
           ),
           Container(
-            color: AppColors.white,
+            color: colorScheme.surface,
             padding: EdgeInsets.symmetric(
               horizontal: AppSpacing.md,
               vertical: AppSpacing.md,
@@ -244,7 +244,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    color: AppColors.lightGray,
+                    color: colorScheme.surfaceContainerHighest,
                     shape: BoxShape.circle,
                     boxShadow: AppShadows.subtleList,
                   ),
@@ -259,7 +259,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                     },
                     icon: Icon(
                       Icons.attach_file,
-                      color: AppColors.secondaryText,
+                      color: colorScheme.onSurfaceVariant,
                       size: 20,
                     ),
                     padding: EdgeInsets.zero,
@@ -273,7 +273,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppColors.lightGray,
+                      color: colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(
                         AppBorderRadius.input,
                       ),
@@ -287,7 +287,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                       decoration: InputDecoration(
                         hintText: 'Type your message...',
                         hintStyle: AppTextStyles.body.copyWith(
-                          color: AppColors.tertiaryText,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(
@@ -303,14 +303,18 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 Container(
                   decoration: BoxDecoration(
                     color: _isSending
-                        ? AppColors.softGray
-                        : AppColors.accentTeal,
+                        ? colorScheme.outline
+                        : colorScheme.primary,
                     shape: BoxShape.circle,
                     boxShadow: AppShadows.subtleList,
                   ),
                   child: IconButton(
                     onPressed: _isSending ? null : _sendMessage,
-                    icon: Icon(Icons.send, color: AppColors.white, size: 20),
+                    icon: Icon(
+                      Icons.send,
+                      color: colorScheme.onPrimary,
+                      size: 20,
+                    ),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
                       minWidth: 48,
@@ -327,6 +331,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
+    final colorScheme = Theme.of(context).colorScheme;
     if (message.isTyping) {
       return Padding(
         padding: EdgeInsets.only(bottom: AppSpacing.md),
@@ -337,11 +342,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: AppColors.accentTeal,
+                color: colorScheme.primary,
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: Icon(Icons.smart_toy, size: 18, color: AppColors.white),
+                child: Icon(
+                  Icons.smart_toy,
+                  size: 18,
+                  color: colorScheme.onPrimary,
+                ),
               ),
             ),
             SizedBox(width: AppSpacing.md),
@@ -351,7 +360,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 vertical: AppSpacing.sm,
               ),
               decoration: BoxDecoration(
-                color: AppColors.lightGray,
+                color: colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(AppBorderRadius.card),
                 boxShadow: AppShadows.subtleList,
               ),
@@ -385,11 +394,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: AppColors.accentTeal,
+                color: colorScheme.primary,
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: Icon(Icons.smart_toy, size: 18, color: AppColors.white),
+                child: Icon(
+                  Icons.smart_toy,
+                  size: 18,
+                  color: colorScheme.onPrimary,
+                ),
               ),
             ),
           SizedBox(width: isUser ? 0 : AppSpacing.md),
@@ -400,7 +413,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 vertical: AppSpacing.sm,
               ),
               decoration: BoxDecoration(
-                color: isUser ? AppColors.brandNavy : AppColors.lightGray,
+                color: isUser
+                    ? colorScheme.primary
+                    : colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(AppBorderRadius.card),
                 boxShadow: AppShadows.subtleList,
               ),
@@ -410,7 +425,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
                   Text(
                     message.content,
                     style: AppTextStyles.body.copyWith(
-                      color: isUser ? AppColors.white : AppColors.primaryText,
+                      color: isUser
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurface,
                     ),
                   ),
                   SizedBox(height: AppSpacing.xs),
@@ -418,8 +435,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
                     _formatTime(message.timestamp),
                     style: AppTextStyles.caption.copyWith(
                       color: isUser
-                          ? AppColors.white.withValues(alpha: 0.7)
-                          : AppColors.secondaryText,
+                          ? colorScheme.onPrimary.withValues(alpha: 0.75)
+                          : colorScheme.onSurfaceVariant,
                       fontSize: 11,
                     ),
                   ),
@@ -433,11 +450,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: AppColors.accentTeal,
+                color: colorScheme.primary,
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: Icon(Icons.person, size: 18, color: AppColors.white),
+                child: Icon(
+                  Icons.person,
+                  size: 18,
+                  color: colorScheme.onPrimary,
+                ),
               ),
             ),
         ],
@@ -446,6 +467,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   }
 
   Widget _typingDot({int delay = 0}) {
+    final colorScheme = Theme.of(context).colorScheme;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.35, end: 1.0),
       duration: Duration(milliseconds: 600 + delay),
@@ -456,7 +478,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
         width: 6,
         height: 6,
         decoration: BoxDecoration(
-          color: AppColors.secondaryText,
+          color: colorScheme.onSurfaceVariant,
           shape: BoxShape.circle,
         ),
       ),
