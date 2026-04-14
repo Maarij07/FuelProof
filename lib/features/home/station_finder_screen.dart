@@ -138,10 +138,7 @@ class _StationFinderScreenState extends State<StationFinderScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
         title: Text('Find Stations', style: AppTextStyles.sectionHeading),
         centerTitle: true,
         actions: [

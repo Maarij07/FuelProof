@@ -226,10 +226,7 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        automaticallyImplyLeading: false,
         title: Text('Connect to Device', style: AppTextStyles.sectionHeading),
         centerTitle: true,
       ),

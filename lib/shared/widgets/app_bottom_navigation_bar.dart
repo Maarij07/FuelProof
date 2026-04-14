@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 
 class AppBottomNavigationBar extends StatelessWidget {
-  const AppBottomNavigationBar({super.key, required this.currentIndex});
+  const AppBottomNavigationBar({
+    super.key,
+    required this.currentIndex,
+    this.onDestinationSelected,
+  });
 
   final int currentIndex;
+  final ValueChanged<int>? onDestinationSelected;
 
   static const List<String> _routes = [
     '/home',
@@ -18,12 +22,18 @@ class AppBottomNavigationBar extends StatelessWidget {
   void _handleDestinationSelected(BuildContext context, int index) {
     if (index == currentIndex) return;
 
+    final handler = onDestinationSelected;
+    if (handler != null) {
+      handler(index);
+      return;
+    }
+
     Navigator.of(context).pushReplacementNamed(_routes[index]);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return SafeArea(
       top: false,
@@ -33,43 +43,33 @@ class AppBottomNavigationBar extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
         child: Container(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF111827) : AppColors.white,
+            color: colorScheme.surface,
             borderRadius: BorderRadius.circular(28),
             border: Border.all(
-              color: isDark
-                  ? const Color(0xFF2A364A)
-                  : AppColors.divider.withValues(
-                      alpha: 0.7,
-                    ), // UPDATED: Replaced withOpacity with withValues
+              color: colorScheme.outlineVariant.withValues(alpha: 0.7),
             ),
             boxShadow: AppShadows.cardList,
           ),
           child: NavigationBarTheme(
             data: NavigationBarThemeData(
               backgroundColor: Colors.transparent,
-              indicatorColor: AppColors.tealLight,
+              indicatorColor: colorScheme.secondaryContainer,
               labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                // UPDATED: Replaced MaterialStateProperty with WidgetStateProperty
-                final selected = states.contains(
-                  WidgetState.selected,
-                ); // UPDATED: Replaced MaterialState with WidgetState
+                final selected = states.contains(WidgetState.selected);
                 return TextStyle(
                   fontSize: 12,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   color: selected
-                      ? AppColors.accentTeal
-                      : AppColors.secondaryText,
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
                 );
               }),
               iconTheme: WidgetStateProperty.resolveWith((states) {
-                // UPDATED: Replaced MaterialStateProperty with WidgetStateProperty
-                final selected = states.contains(
-                  WidgetState.selected,
-                ); // UPDATED: Replaced MaterialState with WidgetState
+                final selected = states.contains(WidgetState.selected);
                 return IconThemeData(
                   color: selected
-                      ? AppColors.accentTeal
-                      : AppColors.tertiaryText,
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
                   size: AppDimensions.iconNavigationSize,
                 );
               }),

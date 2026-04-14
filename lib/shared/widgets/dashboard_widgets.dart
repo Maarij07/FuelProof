@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/constants/text_styles.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/app_constants.dart';
@@ -14,21 +13,25 @@ class ScanToStartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.accentTeal, Color(0xFF00A89C)],
+          gradient: LinearGradient(
+            colors: [
+              colorScheme.primary,
+              colorScheme.primary.withValues(alpha: 0.82),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(AppBorderRadius.card),
           boxShadow: [
             BoxShadow(
-              color: AppColors.accentTeal.withValues(alpha: 0.2),
+              color: colorScheme.primary.withValues(alpha: 0.24),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -38,21 +41,21 @@ class ScanToStartCard extends StatelessWidget {
           children: [
             Icon(
               Icons.qr_code_2,
-              color: AppColors.white,
+              color: colorScheme.onPrimary,
               size: 48,
             ),
             SizedBox(height: AppSpacing.md),
             Text(
               'Scan to Start',
               style: AppTextStyles.sectionHeading.copyWith(
-                color: AppColors.white,
+                color: colorScheme.onPrimary,
               ),
             ),
             SizedBox(height: AppSpacing.xs),
             Text(
               'Tap to scan a dispenser QR code',
               style: AppTextStyles.body.copyWith(
-                color: AppColors.white.withValues(alpha: 0.9),
+                color: colorScheme.onPrimary.withValues(alpha: 0.9),
               ),
               textAlign: TextAlign.center,
             ),
@@ -83,16 +86,17 @@ class TransactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: EdgeInsets.all(AppSpacing.md),
       margin: EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppBorderRadius.card),
-        border: Border.all(color: AppColors.divider, width: 1),
+        border: Border.all(color: colorScheme.outlineVariant, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: colorScheme.shadow.withValues(alpha: 0.18),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -109,12 +113,16 @@ class TransactionCard extends StatelessWidget {
                 children: [
                   Text(
                     station,
-                    style: AppTextStyles.cardTitle,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                   SizedBox(height: AppSpacing.xs),
                   Text(
                     date,
-                    style: AppTextStyles.caption,
+                    style: AppTextStyles.caption.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -143,12 +151,16 @@ class TransactionCard extends StatelessWidget {
                 children: [
                   Text(
                     'Litres',
-                    style: AppTextStyles.caption,
+                    style: AppTextStyles.caption.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   SizedBox(height: AppSpacing.xs),
                   Text(
                     litres,
-                    style: AppTextStyles.cardTitle,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                 ],
               ),
@@ -157,12 +169,16 @@ class TransactionCard extends StatelessWidget {
                 children: [
                   Text(
                     'Amount',
-                    style: AppTextStyles.caption,
+                    style: AppTextStyles.caption.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   SizedBox(height: AppSpacing.xs),
                   Text(
                     amount,
-                    style: AppTextStyles.cardTitle,
+                    style: AppTextStyles.cardTitle.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                 ],
               ),
@@ -188,16 +204,17 @@ class NearbyStationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: 160,
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppBorderRadius.card),
-        border: Border.all(color: AppColors.divider, width: 1),
+        border: Border.all(color: colorScheme.outlineVariant, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: colorScheme.shadow.withValues(alpha: 0.18),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -212,13 +229,13 @@ class NearbyStationCard extends StatelessWidget {
               vertical: AppSpacing.xs,
             ),
             decoration: BoxDecoration(
-              color: AppColors.accentTeal.withValues(alpha: 0.1),
+              color: colorScheme.secondaryContainer,
               borderRadius: BorderRadius.circular(AppBorderRadius.pill),
             ),
             child: Text(
               distance,
               style: AppTextStyles.caption.copyWith(
-                color: AppColors.accentTeal,
+                color: colorScheme.onSecondaryContainer,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -226,14 +243,16 @@ class NearbyStationCard extends StatelessWidget {
           SizedBox(height: AppSpacing.sm),
           Text(
             stationName,
-            style: AppTextStyles.cardTitle,
+            style: AppTextStyles.cardTitle.copyWith(color: colorScheme.onSurface),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           SizedBox(height: AppSpacing.xs),
           Text(
             address,
-            style: AppTextStyles.caption,
+            style: AppTextStyles.caption.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -257,6 +276,7 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -264,17 +284,19 @@ class EmptyState extends StatelessWidget {
           Icon(
             icon,
             size: 48,
-            color: AppColors.divider,
+            color: colorScheme.outline,
           ),
           SizedBox(height: AppSpacing.md),
           Text(
             title,
-            style: AppTextStyles.cardTitle,
+            style: AppTextStyles.cardTitle.copyWith(color: colorScheme.onSurface),
           ),
           SizedBox(height: AppSpacing.sm),
           Text(
             message,
-            style: AppTextStyles.body,
+            style: AppTextStyles.body.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
             textAlign: TextAlign.center,
           ),
         ],

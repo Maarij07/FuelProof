@@ -357,13 +357,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
         appBar: AppBar(
           backgroundColor: AppColors.white,
           elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
-            onPressed: () async {
-              final nav = Navigator.of(context);
-              if (await _onWillPop()) nav.pop();
-            },
-          ),
+          automaticallyImplyLeading: false,
           title: Text('Live Session', style: AppTextStyles.sectionHeading),
           centerTitle: true,
         ),
@@ -378,13 +372,17 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
   }
 
   Widget _buildBody() {
-    if (_isInitializing) return _buildCenteredMessage(
-      icon: Icons.sensors,
-      label: _initPhaseLabel,
-      isLoading: true,
-    );
+    if (_isInitializing) {
+      return _buildCenteredMessage(
+        icon: Icons.sensors,
+        label: _initPhaseLabel,
+        isLoading: true,
+      );
+    }
 
-    if (_initError != null) return _buildErrorCard(_initError!);
+    if (_initError != null) {
+      return _buildErrorCard(_initError!);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

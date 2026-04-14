@@ -326,10 +326,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_rounded, color: AppColors.primaryText),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        automaticallyImplyLeading: false,
         title: Text('Transaction Detail', style: AppTextStyles.sectionHeading),
         actions: [
           if (transaction != null && !_isFlagged)

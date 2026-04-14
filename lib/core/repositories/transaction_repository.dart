@@ -19,18 +19,22 @@ class TransactionRepository {
     String? vehicleId,
   }) async {
     try {
+      final payload = <String, dynamic>{
+        'session_id': sessionId,
+        'nozzle_id': nozzleId,
+        'user_id': userId,
+        'fuel_type': fuelType,
+        'litres_dispensed': litresDispensed,
+        'price_per_litre': pricePerLitre,
+        'payment_method': paymentMethod,
+      };
+      if (vehicleId != null) {
+        payload['vehicle_id'] = vehicleId;
+      }
+
       final response = await apiClient.post<Map<String, dynamic>>(
         '/transactions',
-        data: {
-          'session_id': sessionId,
-          'nozzle_id': nozzleId,
-          'user_id': userId,
-          'fuel_type': fuelType,
-          'litres_dispensed': litresDispensed,
-          'price_per_litre': pricePerLitre,
-          'payment_method': paymentMethod,
-          if (vehicleId != null) 'vehicle_id': vehicleId,
-        },
+        data: payload,
       );
       return Transaction.fromJson(response);
     } catch (e) {

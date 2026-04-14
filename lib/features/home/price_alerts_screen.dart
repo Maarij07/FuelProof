@@ -299,6 +299,7 @@ class _PriceAlertsScreenState extends State<PriceAlertsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text('Price Alerts', style: AppTextStyles.sectionHeading),
       ),
       floatingActionButton: FloatingActionButton(

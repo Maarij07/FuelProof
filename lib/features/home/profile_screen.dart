@@ -19,7 +19,6 @@ import '../../core/repositories/transaction_repository.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/token_manager.dart';
 import '../../main.dart';
-import '../../shared/widgets/app_bottom_navigation_bar.dart';
 
 class _SpendingSummary {
   final double totalSpent;
@@ -56,7 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = true;
   bool _isUploadingAvatar = false;
   bool _notificationsEnabled = true;
-  bool _darkModeEnabled = AppThemeController.themeMode.value == ThemeMode.dark;
+  bool _darkModeEnabled = AppThemeController.currentMode == ThemeMode.dark;
   String? _errorMessage;
   String? _spendingErrorMessage;
 
@@ -66,6 +65,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _darkModeEnabled = AppThemeController.currentMode == ThemeMode.dark;
+    AppThemeController.getThemeMode().addListener(_onThemeModeChanged);
     final tokenManager = TokenManager();
     final apiClient = ApiClient(tokenManager: tokenManager);
     _authRepository = AuthRepository(
@@ -74,6 +75,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     _transactionRepository = TransactionRepository(apiClient: apiClient);
     _loadProfile();
+  }
+
+  void _onThemeModeChanged() {
+    if (mounted) {
+      setState(() {
+        _darkModeEnabled = AppThemeController.currentMode == ThemeMode.dark;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    AppThemeController.getThemeMode().removeListener(_onThemeModeChanged);
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
@@ -176,9 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _toggleDarkMode(bool value) {
     setState(() => _darkModeEnabled = value);
-    AppThemeController.themeMode.value = value
-        ? ThemeMode.dark
-        : ThemeMode.light;
+    AppThemeController.toggleDarkMode(value);
   }
 
   String _formatJoinedDate(String isoDate) {
@@ -785,7 +798,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout from FuelProof?'),
+        content: const Text('Are you sure you want to logout from FuelGuard?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -897,10 +910,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
-      bottomNavigationBar: const AppBottomNavigationBar(currentIndex: 3),
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text('Profile', style: AppTextStyles.sectionHeading),
         centerTitle: true,
         actions: [
@@ -996,7 +1009,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           sections: [
                             const MapEntry(
                               'Support Channels',
-                              'Email: support@fuelproof.app\nPhone: +92 300 0000000\nWorking hours: Monday to Saturday, 9:00 AM to 8:00 PM',
+                              'Email: support@fuelguard.app\nPhone: +92 300 0000000\nWorking hours: Monday to Saturday, 9:00 AM to 8:00 PM',
                             ),
                             const MapEntry(
                               'What We Can Help With',
@@ -1030,7 +1043,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const MapEntry(
                               'Data Protection',
-                              'FuelProof applies secure storage, encrypted transport, and access controls. You can request data deletion through support.',
+                              'FuelGuard applies secure storage, encrypted transport, and access controls. You can request data deletion through support.',
                             ),
                           ],
                         );
@@ -1056,7 +1069,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const MapEntry(
                               'Service Availability',
-                              'FuelProof services may change, pause, or update without prior notice while we improve reliability and security.',
+                              'FuelGuard services may change, pause, or update without prior notice while we improve reliability and security.',
                             ),
                           ],
                         );
@@ -1064,21 +1077,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     _buildMenuOption(
                       icon: Icons.info_outline_rounded,
-                      title: 'About FuelProof',
+                      title: 'About FuelGuard',
                       subtitle: 'Version, licenses, and app information',
                       iconBackgroundColor: AppColors.lightGray,
                       iconColor: AppColors.tertiaryText,
                       onTap: () {
                         _showInfoBottomSheet(
-                          title: 'About FuelProof',
+                          title: 'About FuelGuard',
                           sections: [
                             const MapEntry(
                               'Our Mission',
-                              'FuelProof helps drivers and stations build trust through secure QR verification, transparent records, and fraud-resistant fuel sessions.',
+                              'FuelGuard helps drivers and stations build trust through secure QR verification, transparent records, and fraud-resistant fuel sessions.',
                             ),
                             const MapEntry(
                               'App Version',
-                              'FuelProof v1.0.0\nBuild: Debug configuration\nPlatform support: Android, iOS, and Web',
+                              'FuelGuard v1.0.0\nBuild: Debug configuration\nPlatform support: Android, iOS, and Web',
                             ),
                             const MapEntry(
                               'Core Features',
@@ -1218,9 +1231,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader(User? user) {
+    final colorScheme = Theme.of(context).colorScheme;
     final displayName = user?.fullName.trim().isNotEmpty == true
         ? user!.fullName.trim()
-        : 'FuelProof Member';
+        : 'FuelGuard Member';
     final email = user?.email ?? 'your@email.com';
     final role = user?.role.trim().isNotEmpty == true
         ? user!.role[0].toUpperCase() + user.role.substring(1).toLowerCase()
@@ -1297,7 +1311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             vertical: AppSpacing.xs,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.navyLight,
+                            color: colorScheme.secondaryContainer,
                             borderRadius: BorderRadius.circular(
                               AppBorderRadius.pill,
                             ),
@@ -1305,7 +1319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Text(
                             joinedSince,
                             style: AppTextStyles.caption.copyWith(
-                              color: AppColors.brandNavy,
+                              color: colorScheme.onSecondaryContainer,
                               fontWeight: FontWeight.w700,
                             ),
                           ),

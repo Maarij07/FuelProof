@@ -155,7 +155,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                   SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Welcome back to FuelProof',
+                    'Welcome back to FuelGuard',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: AppColors.secondaryText,
                     ),

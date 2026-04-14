@@ -435,6 +435,7 @@ class _FleetVehicleDetailScreenState extends State<FleetVehicleDetailScreen>
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: Text('Vehicle Detail', style: AppTextStyles.sectionHeading),
         bottom: TabBar(
           controller: _tabController,

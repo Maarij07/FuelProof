@@ -179,10 +179,7 @@ class _EvidenceCaptureScreenState extends State<EvidenceCaptureScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.primaryText),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
         title: Text('Capture Evidence', style: AppTextStyles.sectionHeading),
         centerTitle: true,
       ),

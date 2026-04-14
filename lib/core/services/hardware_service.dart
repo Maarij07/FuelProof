@@ -88,39 +88,6 @@ class HardwareSessionResult {
   );
 }
 
-// ── Internal enum helpers ─────────────────────────────────────────────────────
-
-extension _FuelTypeBackend on FuelType {
-  // All FuelType.name values match backend strings (petrol, diesel, premium, cng, lpg)
-  String get backendValue => name;
-}
-
-extension _FraudSeverityBackend on FraudSeverity {
-  String get backendValue {
-    switch (this) {
-      case FraudSeverity.low:      return 'low';
-      case FraudSeverity.medium:   return 'medium';
-      case FraudSeverity.high:     return 'high';
-      case FraudSeverity.critical: return 'critical';
-    }
-  }
-}
-
-extension _PaymentMethodBackend on PaymentMethod {
-  String get backendValue {
-    switch (this) {
-      case PaymentMethod.cash:
-        return 'cash';
-      case PaymentMethod.card:
-        return 'card';
-      case PaymentMethod.wallet:
-        return 'wallet';
-      case PaymentMethod.qrPay:
-        return 'qr_pay';
-    }
-  }
-}
-
 // ── Hardware Service ──────────────────────────────────────────────────────────
 
 /// Manages the full lifecycle of a hardware dispensing session.
@@ -135,7 +102,6 @@ extension _PaymentMethodBackend on PaymentMethod {
 /// polling they are retried at [_finalise] which runs after the poll stops.
 class HardwareService {
   static const String _deviceBase = 'http://192.168.4.1';
-  static const double _discrepancyTolerance = 0.05;
 
   final ApiClient apiClient;
   final String sessionId;
