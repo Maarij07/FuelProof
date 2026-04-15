@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -312,7 +310,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<String?> _pickImageAsDataUrl(ImageSource source) async {
+  /// Picks an image and returns raw bytes. Returns null if cancelled or failed.
+  Future<Uint8List?> _pickImageBytes(ImageSource source) async {
     Future<XFile?> pick() {
       return _imagePicker.pickImage(
         source: source,
@@ -337,8 +336,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final bytes = await picked.readAsBytes();
       if (bytes.isEmpty) return null;
-      final encoded = base64Encode(bytes);
-      return 'data:image/jpeg;base64,$encoded';
+      return bytes;
     } on PlatformException catch (e) {
       final code = e.code.toLowerCase();
       final message = (e.message ?? '').toLowerCase();
@@ -360,11 +358,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           await Future<void>.delayed(const Duration(milliseconds: 260));
           final retryPicked = await pick();
           if (retryPicked == null) return null;
-
           final retryBytes = await retryPicked.readAsBytes();
           if (retryBytes.isEmpty) return null;
-          final retryEncoded = base64Encode(retryBytes);
-          return 'data:image/jpeg;base64,$retryEncoded';
+          return retryBytes;
         } on PlatformException {
           // Fall through to generic handling below.
         }
@@ -398,32 +394,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Picks an image, uploads it to Cloudinary via the backend, and returns the URL.
+  Future<String?> _pickAndUploadAvatar(ImageSource source) async {
+    final bytes = await _pickImageBytes(source);
+    if (bytes == null) return null;
+    return _authRepository.uploadAvatar(bytes, 'avatar.jpg').then(
+      (updated) => updated.avatarUrl,
+    );
+  }
+
   Future<void> _changeProfilePictureQuick() async {
-    // Step 1: Show modal to choose source
     final source = await _pickAvatarSource();
     if (source == null) return;
 
-    // Step 2: Pick image (this handles permission request internally)
-    setState(() {
-      _isUploadingAvatar = true;
-    });
+    setState(() => _isUploadingAvatar = true);
 
     try {
-      final avatarDataUrl = await _pickImageAsDataUrl(source);
-      if (avatarDataUrl == null) {
-        setState(() {
-          _isUploadingAvatar = false;
-        });
-        return;
-      }
+      final cloudinaryUrl = await _pickAndUploadAvatar(source);
+      if (cloudinaryUrl == null) return;
 
-      final updated = await _authRepository.updateProfile(
-        avatarUrl: avatarDataUrl,
-      );
       if (!mounted) return;
-      setState(() {
-        _user = updated;
-      });
+      // Refresh profile from server (uploadAvatar already updated Firestore)
+      await _loadProfile();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile picture updated successfully')),
       );
@@ -433,15 +426,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         e,
         'Unable to update profile picture right now',
       );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isUploadingAvatar = false;
-        });
-      }
+      if (mounted) setState(() => _isUploadingAvatar = false);
     }
   }
 
@@ -526,20 +513,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       final source = await _pickAvatarSource();
                                       if (source == null) return;
 
-                                      setModalState(() {
-                                        uploadingAvatar = true;
-                                      });
+                                      setModalState(() => uploadingAvatar = true);
 
-                                      final selected =
-                                          await _pickImageAsDataUrl(source);
-
-                                      if (!context.mounted) return;
-                                      setModalState(() {
-                                        if (selected != null) {
-                                          avatarDataUrl = selected;
-                                        }
-                                        uploadingAvatar = false;
-                                      });
+                                      try {
+                                        final url = await _pickAndUploadAvatar(source);
+                                        if (!context.mounted) return;
+                                        setModalState(() {
+                                          if (url != null) avatarDataUrl = url;
+                                          uploadingAvatar = false;
+                                        });
+                                      } catch (_) {
+                                        if (!context.mounted) return;
+                                        setModalState(() => uploadingAvatar = false);
+                                      }
                                     },
                               icon: uploadingAvatar
                                   ? SizedBox(

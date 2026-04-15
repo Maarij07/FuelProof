@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../models/auth_models.dart';
 import '../models/error_models.dart';
 import '../services/api_client.dart';
@@ -159,6 +161,21 @@ class AuthRepository {
       final response = await apiClient.put<Map<String, dynamic>>(
         '/users/me',
         data: data,
+      );
+      return User.fromJson(response);
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Upload avatar image — sends raw bytes as multipart, backend stores on Cloudinary
+  Future<User> uploadAvatar(Uint8List bytes, String filename) async {
+    try {
+      final response = await apiClient.uploadMultipart<Map<String, dynamic>>(
+        '/users/me/avatar',
+        fileBytes: bytes,
+        filename: filename,
+        mimeType: 'image/jpeg',
       );
       return User.fromJson(response);
     } catch (e) {
