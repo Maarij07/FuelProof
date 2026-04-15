@@ -242,34 +242,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
             ),
             child: Row(
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    shape: BoxShape.circle,
-                    boxShadow: AppShadows.subtleList,
-                  ),
-                  child: IconButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Attachment feature coming soon'),
-                          duration: Duration(milliseconds: 800),
-                        ),
-                      );
-                    },
-                    icon: Icon(
-                      Icons.attach_file,
-                      color: colorScheme.onSurfaceVariant,
-                      size: 20,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 48,
-                      minHeight: 48,
-                    ),
-                  ),
-                ),
-                SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
