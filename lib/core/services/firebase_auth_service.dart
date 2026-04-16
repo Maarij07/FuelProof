@@ -4,6 +4,17 @@ import 'package:firebase_core/firebase_core.dart';
 import '../models/error_models.dart';
 
 class FirebaseAuthService {
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    if (Firebase.apps.isEmpty) {
+      throw AppError(
+        message:
+            'Firebase is not configured yet. Add Firebase project settings before using password reset.',
+      );
+    }
+
+    await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+  }
+
   Future<String> signInAndGetIdToken({
     required String email,
     required String password,
@@ -31,5 +42,33 @@ class FirebaseAuthService {
     }
 
     return idToken;
+  }
+
+  Future<void> confirmPasswordReset({
+    required String oobCode,
+    required String newPassword,
+  }) async {
+    if (Firebase.apps.isEmpty) {
+      throw AppError(
+        message:
+            'Firebase is not configured yet. Add Firebase project settings before using password reset.',
+      );
+    }
+
+    await FirebaseAuth.instance.confirmPasswordReset(
+      code: oobCode,
+      newPassword: newPassword,
+    );
+  }
+
+  Future<String> verifyPasswordResetCode({required String oobCode}) async {
+    if (Firebase.apps.isEmpty) {
+      throw AppError(
+        message:
+            'Firebase is not configured yet. Add Firebase project settings before using password reset.',
+      );
+    }
+
+    return FirebaseAuth.instance.verifyPasswordResetCode(oobCode);
   }
 }

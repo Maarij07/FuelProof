@@ -59,6 +59,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
         backgroundColor: AppColors.primaryBackground,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: Icon(Icons.arrow_back_rounded, color: AppColors.primaryText),
+        ),
         title: Text(
           'Notifications',
           style: AppTextStyles.sectionHeading.copyWith(fontSize: 24),

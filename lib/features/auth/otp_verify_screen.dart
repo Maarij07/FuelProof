@@ -1,10 +1,13 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/models/error_models.dart';
+import '../../core/repositories/auth_repository.dart';
+import '../../core/services/api_client.dart';
+import '../../core/services/token_manager.dart';
 
 class OtpVerifyScreen extends StatefulWidget {
   final String email;
@@ -19,43 +22,70 @@ class OtpVerifyScreen extends StatefulWidget {
 class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
 
-  final _otpController = TextEditingController();
+  late final AuthRepository _authRepository;
   bool _isSubmitting = false;
 
   @override
-  void dispose() {
-    _otpController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    final tokenManager = TokenManager();
+    _authRepository = AuthRepository(
+      apiClient: ApiClient(tokenManager: tokenManager),
+      tokenManager: tokenManager,
+    );
   }
 
-  Future<void> _verifyOtp() async {
+  Future<void> _continue() async {
     FocusScope.of(context).unfocus();
 
-    // For signup flow, tokens are already saved — just continue to home.
     if (widget.flow == 'signup') {
-      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      setState(() => _isSubmitting = true);
+
+      try {
+        final isVerified = await _authRepository.isAccountVerified();
+
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+
+        if (isVerified) {
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/home', (route) => false);
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Please verify your email first, then tap Continue to App.',
+            ),
+          ),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+
+        final message =
+            error is AppError &&
+                error.detail != null &&
+                error.detail!.trim().isNotEmpty
+            ? error.detail!
+            : 'Could not verify account status. Please try again.';
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+
       return;
     }
 
-    // reset_password flow: validate 6-digit code
-    if (_otpController.text.trim().length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid 6-digit OTP code')),
-      );
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
       return;
     }
 
-    setState(() => _isSubmitting = true);
-
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-
-    if (!mounted) return;
-    setState(() => _isSubmitting = false);
-
-    Navigator.of(context).pushReplacementNamed(
-      '/reset-password',
-      arguments: {'email': widget.email.trim()},
-    );
+    Navigator.of(context).pushReplacementNamed('/sign-in');
   }
 
   @override
@@ -116,7 +146,7 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
                   SizedBox(height: AppSpacing.md),
                   Text(
                     widget.flow == 'reset_password'
-                        ? 'Verify reset OTP'
+                        ? 'Check your email'
                         : 'Verify your email',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: AppColors.brandNavy,
@@ -127,10 +157,10 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
                   SizedBox(height: AppSpacing.xs),
                   Text(
                     widget.flow == 'reset_password'
-                        ? 'Enter the 6-digit code sent to $emailText to reset your password'
+                        ? 'A password reset verification link has been sent to $emailText'
                         : 'We sent a verification email to $emailText',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.secondaryText,
+                      color: AppColors.primaryText.withValues(alpha: 0.88),
                     ),
                   ),
                   SizedBox(height: AppSpacing.xxl),
@@ -165,50 +195,32 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            if (widget.flow == 'signup') ...[
-                              // Signup: email verification sent, just continue
-                              Icon(
-                                Icons.mark_email_read_outlined,
-                                size: 48,
-                                color: AppColors.accentTeal,
-                              ),
-                              SizedBox(height: AppSpacing.md),
-                              Text(
-                                'Check your inbox',
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                                textAlign: TextAlign.center,
-                              ),
-                              SizedBox(height: AppSpacing.sm),
-                              Text(
-                                'A verification link has been sent to ${widget.email.trim().isEmpty ? 'your email' : widget.email.trim()}. Verify your email, then continue.',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: AppColors.secondaryText),
-                                textAlign: TextAlign.center,
-                              ),
-                              SizedBox(height: AppSpacing.lg),
-                            ] else ...[
-                              // Reset password: need OTP input
-                              TextFormField(
-                                controller: _otpController,
-                                keyboardType: TextInputType.number,
-                                maxLength: 6,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                ],
-                                decoration: const InputDecoration(
-                                  labelText: 'OTP Code',
-                                  hintText: '123456',
-                                  prefixIcon: Icon(Icons.verified_user_outlined),
-                                  counterText: '',
-                                ),
-                              ),
-                              SizedBox(height: AppSpacing.md),
-                            ],
+                            Icon(
+                              Icons.mark_email_read_outlined,
+                              size: 48,
+                              color: AppColors.accentTeal,
+                            ),
+                            SizedBox(height: AppSpacing.md),
+                            Text(
+                              'Check your inbox',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: AppSpacing.sm),
+                            Text(
+                              widget.flow == 'signup'
+                                  ? 'A verification link has been sent to ${widget.email.trim().isEmpty ? 'your email' : widget.email.trim()}. Verify your email, then continue.'
+                                  : 'Use the link in your email to continue resetting your password.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: AppColors.secondaryText),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: AppSpacing.lg),
                             SizedBox(
                               height: 52,
                               child: ElevatedButton(
-                                onPressed: _isSubmitting ? null : _verifyOtp,
+                                onPressed: _isSubmitting ? null : _continue,
                                 child: _isSubmitting
                                     ? const SizedBox(
                                         width: 22,
@@ -221,17 +233,10 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
                                     : Text(
                                         widget.flow == 'signup'
                                             ? 'Continue to App'
-                                            : 'Verify OTP',
+                                            : 'Done',
                                       ),
                               ),
                             ),
-                            if (widget.flow == 'reset_password') ...[
-                              SizedBox(height: AppSpacing.sm),
-                              TextButton(
-                                onPressed: () {},
-                                child: const Text('Resend OTP'),
-                              ),
-                            ],
                           ],
                         ),
                       ),

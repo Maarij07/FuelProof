@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'core/constants/app_colors.dart';
 import 'core/services/transaction_sync_service.dart';
@@ -67,6 +68,7 @@ class AppThemeController {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   await Hive.initFlutter();
   await PreferencesService.init();
   AppThemeController.initialize();
@@ -93,9 +95,7 @@ class MyApp extends StatelessWidget {
           builder: (context, child) {
             final appChild = child ?? const SizedBox.shrink();
             if (!kDebugMode) return appChild;
-            return Stack(
-              children: [appChild, const DebugLogOverlay()],
-            );
+            return Stack(children: [appChild, const DebugLogOverlay()]);
           },
           home: const SplashScreen(),
           routes: {
@@ -114,12 +114,25 @@ class MyApp extends StatelessWidget {
                   : 'signup';
               return OtpVerifyScreen(email: email, flow: flow);
             },
+            '/verification': (context) {
+              final args = ModalRoute.of(context)?.settings.arguments;
+              final email = args is Map<String, dynamic>
+                  ? (args['email'] as String? ?? '')
+                  : '';
+              final flow = args is Map<String, dynamic>
+                  ? (args['flow'] as String? ?? 'signup')
+                  : 'signup';
+              return OtpVerifyScreen(email: email, flow: flow);
+            },
             '/reset-password': (context) {
               final args = ModalRoute.of(context)?.settings.arguments;
               final email = args is Map<String, dynamic>
                   ? (args['email'] as String? ?? '')
                   : '';
-              return ResetPasswordScreen(email: email);
+              final oobCode = args is Map<String, dynamic>
+                  ? (args['oobCode'] as String? ?? '')
+                  : '';
+              return ResetPasswordScreen(email: email, oobCode: oobCode);
             },
             '/home': (context) => const DashboardShell(initialIndex: 0),
             '/scan-qr': (context) => const ScanQrScreen(),
@@ -133,7 +146,7 @@ class MyApp extends StatelessWidget {
               return TransactionSuccessScreen(transactionId: transactionId);
             },
             '/transaction-history': (context) =>
-              const DashboardShell(initialIndex: 1),
+                const DashboardShell(initialIndex: 1),
             '/transaction-detail': (context) => const TransactionDetailScreen(),
             '/station-finder': (context) => const StationFinderScreen(),
             '/route-stations': (context) => const RouteStationsScreen(),

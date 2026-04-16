@@ -238,6 +238,10 @@ class _FleetVehiclesScreenState extends State<FleetVehiclesScreen> {
         backgroundColor: AppColors.white,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: Icon(Icons.arrow_back_rounded, color: AppColors.primaryText),
+        ),
         title: Text('My Vehicles', style: AppTextStyles.sectionHeading),
         actions: [
           IconButton(
