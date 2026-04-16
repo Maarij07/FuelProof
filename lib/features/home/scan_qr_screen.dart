@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -10,19 +11,18 @@ import '../../core/constants/spacing.dart';
 import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/repositories/session_repository.dart';
-import '../../core/services/api_client.dart';
 import '../../core/services/app_logger.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 import '../../shared/widgets/app_bottom_navigation_bar.dart';
 
-class ScanQrScreen extends StatefulWidget {
+class ScanQrScreen extends ConsumerStatefulWidget {
   const ScanQrScreen({super.key});
 
   @override
-  State<ScanQrScreen> createState() => _ScanQrScreenState();
+  ConsumerState<ScanQrScreen> createState() => _ScanQrScreenState();
 }
 
-class _ScanQrScreenState extends State<ScanQrScreen> {
+class _ScanQrScreenState extends ConsumerState<ScanQrScreen> {
   MobileScannerController? scannerController;
   bool _isScanPermissionGranted = false;
   bool _isProcessingScan = false;
@@ -33,9 +33,7 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _sessionRepository = SessionRepository(apiClient: apiClient);
+    _sessionRepository = ref.read(sessionRepositoryProvider);
     _checkAndRequestPermission();
   }
 

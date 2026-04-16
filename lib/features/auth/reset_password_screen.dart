@@ -1,31 +1,31 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/models/error_models.dart';
-import '../../core/services/firebase_auth_service.dart';
+import '../../core/state/app_providers.dart';
 import 'utils/auth_validators.dart';
 
-class ResetPasswordScreen extends StatefulWidget {
+class ResetPasswordScreen extends ConsumerStatefulWidget {
   final String email;
   final String oobCode;
 
   const ResetPasswordScreen({super.key, this.email = '', this.oobCode = ''});
 
   @override
-  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
+  ConsumerState<ResetPasswordScreen> createState() =>
+      _ResetPasswordScreenState();
 }
 
-class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
+class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
 
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-
-  late final FirebaseAuthService _firebaseAuthService;
 
   String? _accountEmail;
   bool _obscurePassword = true;
@@ -36,7 +36,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   void initState() {
     super.initState();
-    _firebaseAuthService = FirebaseAuthService();
     _accountEmail = widget.email.trim().isEmpty ? null : widget.email.trim();
 
     if (widget.oobCode.trim().isEmpty) {
@@ -56,9 +55,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   Future<void> _loadEmailFromCode() async {
     try {
-      final email = await _firebaseAuthService.verifyPasswordResetCode(
-        oobCode: widget.oobCode.trim(),
-      );
+      final email = await ref
+          .read(firebaseAuthServiceProvider)
+          .verifyPasswordResetCode(oobCode: widget.oobCode.trim());
       if (!mounted) return;
       setState(() {
         _accountEmail = email;
@@ -93,10 +92,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
 
     try {
-      await _firebaseAuthService.confirmPasswordReset(
-        oobCode: widget.oobCode.trim(),
-        newPassword: _passwordController.text,
-      );
+      await ref
+          .read(firebaseAuthServiceProvider)
+          .confirmPasswordReset(
+            oobCode: widget.oobCode.trim(),
+            newPassword: _passwordController.text,
+          );
 
       if (!mounted) {
         return;

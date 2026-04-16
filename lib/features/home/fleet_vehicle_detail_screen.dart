@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -7,18 +8,18 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/fleet_models.dart';
 import '../../core/repositories/fleet_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class FleetVehicleDetailScreen extends StatefulWidget {
+class FleetVehicleDetailScreen extends ConsumerStatefulWidget {
   const FleetVehicleDetailScreen({super.key});
 
   @override
-  State<FleetVehicleDetailScreen> createState() =>
+  ConsumerState<FleetVehicleDetailScreen> createState() =>
       _FleetVehicleDetailScreenState();
 }
 
-class _FleetVehicleDetailScreenState extends State<FleetVehicleDetailScreen>
+class _FleetVehicleDetailScreenState
+    extends ConsumerState<FleetVehicleDetailScreen>
     with SingleTickerProviderStateMixin {
   late final FleetRepository _fleetRepository;
   late final TabController _tabController;
@@ -36,9 +37,7 @@ class _FleetVehicleDetailScreenState extends State<FleetVehicleDetailScreen>
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _fleetRepository = FleetRepository(apiClient: apiClient);
+    _fleetRepository = ref.read(fleetRepositoryProvider);
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (mounted) setState(() {});

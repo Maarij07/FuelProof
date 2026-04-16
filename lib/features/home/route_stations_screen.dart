@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -7,17 +8,17 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/station_models.dart';
 import '../../core/repositories/station_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class RouteStationsScreen extends StatefulWidget {
+class RouteStationsScreen extends ConsumerStatefulWidget {
   const RouteStationsScreen({super.key});
 
   @override
-  State<RouteStationsScreen> createState() => _RouteStationsScreenState();
+  ConsumerState<RouteStationsScreen> createState() =>
+      _RouteStationsScreenState();
 }
 
-class _RouteStationsScreenState extends State<RouteStationsScreen> {
+class _RouteStationsScreenState extends ConsumerState<RouteStationsScreen> {
   static const double _defaultOriginLat = 31.5204;
   static const double _defaultOriginLng = 74.3587;
   static const double _defaultDestLat = 31.4504;
@@ -38,9 +39,7 @@ class _RouteStationsScreenState extends State<RouteStationsScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _stationRepository = StationRepository(apiClient: apiClient);
+    _stationRepository = ref.read(stationRepositoryProvider);
     _originLatController = TextEditingController(
       text: _defaultOriginLat.toString(),
     );

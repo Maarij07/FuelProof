@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_constants.dart';
@@ -6,8 +7,7 @@ import '../../core/constants/spacing.dart';
 import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/repositories/chat_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
 class ChatMessage {
   final String id;
@@ -25,14 +25,14 @@ class ChatMessage {
   });
 }
 
-class AIChatScreen extends StatefulWidget {
+class AIChatScreen extends ConsumerStatefulWidget {
   const AIChatScreen({super.key});
 
   @override
-  State<AIChatScreen> createState() => _AIChatScreenState();
+  ConsumerState<AIChatScreen> createState() => _AIChatScreenState();
 }
 
-class _AIChatScreenState extends State<AIChatScreen> {
+class _AIChatScreenState extends ConsumerState<AIChatScreen> {
   late final ChatRepository _chatRepository;
   late final TextEditingController _messageController;
   late final ScrollController _scrollController;
@@ -52,9 +52,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     super.initState();
     _messageController = TextEditingController();
     _scrollController = ScrollController();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _chatRepository = ChatRepository(apiClient: apiClient);
+    _chatRepository = ref.read(chatRepositoryProvider);
     _messages.add(
       ChatMessage(
         id: 'welcome',
@@ -183,9 +181,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 SizedBox(width: AppSpacing.xs),
                 Text(
                   _isSending ? 'Assistant replying...' : 'AI Assistant Online',
-                  style: AppTextStyles.caption.copyWith(
-                    color: Colors.green,
-                  ),
+                  style: AppTextStyles.caption.copyWith(color: Colors.green),
                 ),
               ],
             ),

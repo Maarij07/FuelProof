@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -16,8 +17,7 @@ import '../../core/models/error_models.dart';
 import '../../core/models/transaction_models.dart';
 import '../../core/repositories/auth_repository.dart';
 import '../../core/repositories/transaction_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 import '../../main.dart';
 
 class _SpendingSummary {
@@ -40,14 +40,14 @@ class _SpendingSummary {
       completedTransactions = 0;
 }
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late final AuthRepository _authRepository;
   late final TransactionRepository _transactionRepository;
   final ImagePicker _imagePicker = ImagePicker();
@@ -67,13 +67,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _darkModeEnabled = AppThemeController.currentMode == ThemeMode.dark;
     AppThemeController.getThemeMode().addListener(_onThemeModeChanged);
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _authRepository = AuthRepository(
-      apiClient: apiClient,
-      tokenManager: tokenManager,
-    );
-    _transactionRepository = TransactionRepository(apiClient: apiClient);
+    _authRepository = ref.read(authRepositoryProvider);
+    _transactionRepository = ref.read(transactionRepositoryProvider);
     _loadProfile();
   }
 

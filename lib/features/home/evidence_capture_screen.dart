@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/text_styles.dart';
 import '../../core/constants/spacing.dart';
@@ -6,8 +7,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/transaction_models.dart';
 import '../../core/repositories/transaction_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
 class EvidenceID {
   final String id;
@@ -23,16 +23,17 @@ class EvidenceID {
   });
 }
 
-class EvidenceCaptureScreen extends StatefulWidget {
+class EvidenceCaptureScreen extends ConsumerStatefulWidget {
   final String? transactionId;
 
   const EvidenceCaptureScreen({super.key, this.transactionId});
 
   @override
-  State<EvidenceCaptureScreen> createState() => _EvidenceCaptureScreenState();
+  ConsumerState<EvidenceCaptureScreen> createState() =>
+      _EvidenceCaptureScreenState();
 }
 
-class _EvidenceCaptureScreenState extends State<EvidenceCaptureScreen> {
+class _EvidenceCaptureScreenState extends ConsumerState<EvidenceCaptureScreen> {
   late final TransactionRepository _transactionRepository;
 
   bool _hasCapture = false;
@@ -45,10 +46,7 @@ class _EvidenceCaptureScreenState extends State<EvidenceCaptureScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    _transactionRepository = TransactionRepository(
-      apiClient: ApiClient(tokenManager: tokenManager),
-    );
+    _transactionRepository = ref.read(transactionRepositoryProvider);
 
     _descriptionController = TextEditingController();
     _currentEvidence = EvidenceID(

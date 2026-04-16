@@ -1,23 +1,23 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/models/error_models.dart';
-import '../../core/repositories/auth_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 import 'utils/auth_validators.dart';
 
-class CreateAccountScreen extends StatefulWidget {
+class CreateAccountScreen extends ConsumerStatefulWidget {
   const CreateAccountScreen({super.key});
 
   @override
-  State<CreateAccountScreen> createState() => _CreateAccountScreenState();
+  ConsumerState<CreateAccountScreen> createState() =>
+      _CreateAccountScreenState();
 }
 
-class _CreateAccountScreenState extends State<CreateAccountScreen> {
+class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
   static const String _pakistanCountryCode = '+92';
 
@@ -28,21 +28,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  late final AuthRepository _authRepository;
-
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final tokenManager = TokenManager();
-    _authRepository = AuthRepository(
-      apiClient: ApiClient(tokenManager: tokenManager),
-      tokenManager: tokenManager,
-    );
-  }
 
   @override
   void dispose() {
@@ -79,14 +67,16 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     });
 
     try {
-      await _authRepository.signup(
-        fullName: _fullNameController.text,
-        email: _emailController.text,
-        password: _passwordController.text,
-        phone: _phoneController.text.trim().isEmpty
-            ? null
-            : _buildPakistaniPhoneNumber(_phoneController.text.trim()),
-      );
+      await ref
+          .read(authRepositoryProvider)
+          .signup(
+            fullName: _fullNameController.text,
+            email: _emailController.text,
+            password: _passwordController.text,
+            phone: _phoneController.text.trim().isEmpty
+                ? null
+                : _buildPakistaniPhoneNumber(_phoneController.text.trim()),
+          );
 
       if (!mounted) {
         return;

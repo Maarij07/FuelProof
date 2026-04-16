@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -8,17 +9,17 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/station_models.dart';
 import '../../core/repositories/station_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class StationDetailScreen extends StatefulWidget {
+class StationDetailScreen extends ConsumerStatefulWidget {
   const StationDetailScreen({super.key});
 
   @override
-  State<StationDetailScreen> createState() => _StationDetailScreenState();
+  ConsumerState<StationDetailScreen> createState() =>
+      _StationDetailScreenState();
 }
 
-class _StationDetailScreenState extends State<StationDetailScreen> {
+class _StationDetailScreenState extends ConsumerState<StationDetailScreen> {
   late final StationRepository _stationRepository;
 
   bool _initialized = false;
@@ -33,9 +34,7 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _stationRepository = StationRepository(apiClient: apiClient);
+    _stationRepository = ref.read(stationRepositoryProvider);
   }
 
   @override

@@ -1,39 +1,27 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/models/error_models.dart';
-import '../../core/repositories/auth_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class OtpVerifyScreen extends StatefulWidget {
+class OtpVerifyScreen extends ConsumerStatefulWidget {
   final String email;
   final String flow;
 
   const OtpVerifyScreen({super.key, this.email = '', this.flow = 'signup'});
 
   @override
-  State<OtpVerifyScreen> createState() => _OtpVerifyScreenState();
+  ConsumerState<OtpVerifyScreen> createState() => _OtpVerifyScreenState();
 }
 
-class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
+class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
 
-  late final AuthRepository _authRepository;
   bool _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final tokenManager = TokenManager();
-    _authRepository = AuthRepository(
-      apiClient: ApiClient(tokenManager: tokenManager),
-      tokenManager: tokenManager,
-    );
-  }
 
   Future<void> _continue() async {
     FocusScope.of(context).unfocus();
@@ -42,7 +30,9 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
       setState(() => _isSubmitting = true);
 
       try {
-        final isVerified = await _authRepository.isAccountVerified();
+        final isVerified = await ref
+            .read(authRepositoryProvider)
+            .isAccountVerified();
 
         if (!mounted) return;
         setState(() => _isSubmitting = false);

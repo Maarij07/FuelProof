@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -9,21 +10,18 @@ import '../../core/models/auth_models.dart';
 import '../../core/models/transaction_models.dart';
 import '../../core/repositories/auth_repository.dart';
 import '../../core/repositories/transaction_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 import '../../shared/widgets/dashboard_widgets.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
+class _HomeScreenState extends ConsumerState<HomeScreen>
     with AutomaticKeepAliveClientMixin {
-  late final TokenManager _tokenManager;
-  late final ApiClient _apiClient;
   late final AuthRepository _authRepository;
   late final TransactionRepository _transactionRepository;
 
@@ -43,13 +41,8 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _tokenManager = TokenManager();
-    _apiClient = ApiClient(tokenManager: _tokenManager);
-    _authRepository = AuthRepository(
-      apiClient: _apiClient,
-      tokenManager: _tokenManager,
-    );
-    _transactionRepository = TransactionRepository(apiClient: _apiClient);
+    _authRepository = ref.read(authRepositoryProvider);
+    _transactionRepository = ref.read(transactionRepositoryProvider);
     _loadDashboardDataOnce();
   }
 
@@ -473,9 +466,7 @@ class _HomeScreenState extends State<HomeScreen>
                   decoration: BoxDecoration(
                     color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(AppBorderRadius.card),
-                    border: Border.all(
-                      color: colorScheme.outlineVariant,
-                    ),
+                    border: Border.all(color: colorScheme.outlineVariant),
                     boxShadow: AppShadows.subtleList,
                   ),
                   child: Column(
@@ -559,9 +550,7 @@ class _HomeScreenState extends State<HomeScreen>
           decoration: BoxDecoration(
             color: colorScheme.surface,
             borderRadius: BorderRadius.circular(AppBorderRadius.card),
-            border: Border.all(
-              color: colorScheme.outlineVariant,
-            ),
+            border: Border.all(color: colorScheme.outlineVariant),
             boxShadow: AppShadows.subtleList,
           ),
           child: Row(
@@ -644,9 +633,7 @@ class _HomeScreenState extends State<HomeScreen>
           decoration: BoxDecoration(
             color: colorScheme.surface,
             borderRadius: BorderRadius.circular(AppBorderRadius.card),
-            border: Border.all(
-              color: colorScheme.outlineVariant,
-            ),
+            border: Border.all(color: colorScheme.outlineVariant),
             boxShadow: AppShadows.subtleList,
           ),
           child: Row(
@@ -658,7 +645,11 @@ class _HomeScreenState extends State<HomeScreen>
                   color: colorScheme.secondaryContainer,
                   borderRadius: BorderRadius.circular(AppBorderRadius.small),
                 ),
-                child: Icon(icon, color: colorScheme.onSecondaryContainer, size: 20),
+                child: Icon(
+                  icon,
+                  color: colorScheme.onSecondaryContainer,
+                  size: 20,
+                ),
               ),
               SizedBox(width: AppSpacing.sm),
               Expanded(

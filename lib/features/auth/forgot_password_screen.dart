@@ -1,35 +1,29 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/models/error_models.dart';
-import '../../core/services/firebase_auth_service.dart';
+import '../../core/state/app_providers.dart';
 import 'utils/auth_validators.dart';
 
-class ForgotPasswordScreen extends StatefulWidget {
+class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ForgotPasswordScreen> createState() =>
+      _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
 
-  late final FirebaseAuthService _firebaseAuthService;
-
   bool _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _firebaseAuthService = FirebaseAuthService();
-  }
 
   @override
   void dispose() {
@@ -49,9 +43,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      await _firebaseAuthService.sendPasswordResetEmail(
-        email: _emailController.text.trim(),
-      );
+      await ref
+          .read(firebaseAuthServiceProvider)
+          .sendPasswordResetEmail(email: _emailController.text.trim());
 
       if (!mounted) {
         return;

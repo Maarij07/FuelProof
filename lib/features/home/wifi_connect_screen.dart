@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -14,6 +15,7 @@ import '../../core/repositories/transaction_repository.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/app_logger.dart';
 import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
 /// Two-phase screen for the WiFi QR flow:
 ///
@@ -26,37 +28,37 @@ import '../../core/services/token_manager.dart';
 ///
 /// This split ensures the backend call never runs while the phone is on the
 /// FuelMonitor AP (which has no internet).
-class WifiConnectScreen extends StatefulWidget {
+class WifiConnectScreen extends ConsumerStatefulWidget {
   const WifiConnectScreen({super.key});
 
   @override
-  State<WifiConnectScreen> createState() => _WifiConnectScreenState();
+  ConsumerState<WifiConnectScreen> createState() => _WifiConnectScreenState();
 }
 
 enum _Phase { creatingSession, waitingForWifi, error }
 
-class _WifiConnectScreenState extends State<WifiConnectScreen> {
-  static const String _deviceBase   = 'http://192.168.4.1';
-  static const String _wifiSsid     = 'FuelMonitor';
+class _WifiConnectScreenState extends ConsumerState<WifiConnectScreen> {
+  static const String _deviceBase = 'http://192.168.4.1';
+  static const String _wifiSsid = 'FuelMonitor';
   static const String _wifiPassword = '12345678';
 
-  late final Dio                    _deviceDio;
-  late final SessionRepository      _sessionRepository;
-  late final TransactionRepository  _transactionRepository;
-  late final TokenManager           _tokenManager;
-  late final ApiClient              _apiClient;
+  late final Dio _deviceDio;
+  late final SessionRepository _sessionRepository;
+  late final TransactionRepository _transactionRepository;
+  late final TokenManager _tokenManager;
+  late final ApiClient _apiClient;
 
-  _Phase  _phase    = _Phase.creatingSession;
-  String  _errorMsg = '';
+  _Phase _phase = _Phase.creatingSession;
+  String _errorMsg = '';
 
   // Set after phase 1 succeeds
-  String?   _sessionId;
-  String?   _nozzleId;
+  String? _sessionId;
+  String? _nozzleId;
 
   // Backend data fetched in Phase 1 (before WiFi switch) — forwarded to live session
-  String    _userId        = '';
-  FuelType  _fuelType      = FuelType.petrol;
-  double    _pricePerLitre = 0.0;
+  String _userId = '';
+  FuelType _fuelType = FuelType.petrol;
+  double _pricePerLitre = 0.0;
 
   Timer? _pollTimer;
   Timer? _pollTimeoutTimer;
@@ -67,15 +69,15 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
     super.initState();
     _deviceDio = Dio(
       BaseOptions(
-        baseUrl:        _deviceBase,
+        baseUrl: _deviceBase,
         connectTimeout: const Duration(seconds: 3),
         receiveTimeout: const Duration(seconds: 3),
       ),
     );
-    _tokenManager = TokenManager();
-    _apiClient    = ApiClient(tokenManager: _tokenManager);
-    _sessionRepository     = SessionRepository(apiClient: _apiClient);
-    _transactionRepository = TransactionRepository(apiClient: _apiClient);
+    _tokenManager = ref.read(tokenManagerProvider);
+    _apiClient = ref.read(apiClientProvider);
+    _sessionRepository = ref.read(sessionRepositoryProvider);
+    _transactionRepository = ref.read(transactionRepositoryProvider);
   }
 
   @override
@@ -91,7 +93,7 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
 
       if (nozzleId == null || nozzleId.isEmpty) {
         setState(() {
-          _phase    = _Phase.error;
+          _phase = _Phase.error;
           _errorMsg = 'Nozzle ID missing. Please scan the QR code again.';
         });
         return;
@@ -127,9 +129,9 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
       ]);
 
       final sessionResult = results[0] as SessionScanResponse;
-      final userId        = results[1] as String?;
-      final nozzleData    = results[2] as Map<String, dynamic>;
-      final prices        = results[3] as List<FuelPrice>;
+      final userId = results[1] as String?;
+      final nozzleData = results[2] as Map<String, dynamic>;
+      final prices = results[3] as List<FuelPrice>;
 
       _sessionId = sessionResult.sessionId;
 
@@ -143,12 +145,12 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
       // Find matching price
       final match = prices.where((p) => p.fuelType == _fuelType).toList();
       _pricePerLitre = match.isNotEmpty ? match.first.pricePerLitre : 0.0;
-      _userId        = userId ?? '';
+      _userId = userId ?? '';
 
       AppLogger.log(
         'WiFi',
         'Session created: ${sessionResult.sessionId} — '
-        'fuel=${_fuelType.name} price=$_pricePerLitre — now waiting for WiFi',
+            'fuel=${_fuelType.name} price=$_pricePerLitre — now waiting for WiFi',
       );
 
       if (!mounted) return;
@@ -158,8 +160,9 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
       AppLogger.error('WiFi', 'Session creation failed: $e');
       if (!mounted) return;
       setState(() {
-        _phase    = _Phase.error;
-        _errorMsg = 'Could not create session. Check your internet and try again.';
+        _phase = _Phase.error;
+        _errorMsg =
+            'Could not create session. Check your internet and try again.';
       });
     }
   }
@@ -181,7 +184,7 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
       if (!mounted) return;
       _pollTimer?.cancel();
       setState(() {
-        _phase    = _Phase.error;
+        _phase = _Phase.error;
         _errorMsg =
             'Could not detect the device after 5 minutes.\n'
             'Make sure the phone is connected to the FuelMonitor WiFi and '
@@ -203,12 +206,12 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
       Navigator.of(context).pushReplacementNamed(
         '/live-session',
         arguments: {
-          'sessionId':    _sessionId!,
-          'nozzleId':     _nozzleId!,
+          'sessionId': _sessionId!,
+          'nozzleId': _nozzleId!,
           // Pre-loaded during Phase 1 (while internet was available).
           // live_session_screen uses these to skip its own backend fetch.
-          'userId':       _userId,
-          'fuelType':     _fuelType.name,
+          'userId': _userId,
+          'fuelType': _fuelType.name,
           'pricePerLitre': _pricePerLitre,
         },
       );
@@ -256,7 +259,11 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
         SizedBox(height: AppSpacing.xl),
         _iconCircle(Icons.cloud_sync_rounded),
         SizedBox(height: AppSpacing.lg),
-        Text('Preparing Session', style: AppTextStyles.sectionHeading, textAlign: TextAlign.center),
+        Text(
+          'Preparing Session',
+          style: AppTextStyles.sectionHeading,
+          textAlign: TextAlign.center,
+        ),
         SizedBox(height: AppSpacing.md),
         Text(
           'Setting up your fueling session on the server…',
@@ -303,7 +310,11 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
             children: [
               _credentialRow(Icons.wifi_rounded, 'Network Name', _wifiSsid),
               Divider(height: AppSpacing.lg),
-              _credentialRow(Icons.lock_outline_rounded, 'Password', _wifiPassword),
+              _credentialRow(
+                Icons.lock_outline_rounded,
+                'Password',
+                _wifiPassword,
+              ),
             ],
           ),
         ),
@@ -316,21 +327,27 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
           decoration: BoxDecoration(
             color: AppColors.accentTeal.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(AppBorderRadius.card),
-            border: Border.all(color: AppColors.accentTeal.withValues(alpha: 0.2)),
+            border: Border.all(
+              color: AppColors.accentTeal.withValues(alpha: 0.2),
+            ),
           ),
           child: Row(
             children: [
               SizedBox(
-                width: 18, height: 18,
+                width: 18,
+                height: 18,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2, color: AppColors.accentTeal,
+                  strokeWidth: 2,
+                  color: AppColors.accentTeal,
                 ),
               ),
               SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
                   'Waiting for device connection…',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.accentTeal),
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.accentTeal,
+                  ),
                 ),
               ),
             ],
@@ -374,7 +391,8 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
 
   Widget _iconCircle(IconData icon) {
     return Container(
-      width: 80, height: 80,
+      width: 80,
+      height: 80,
       decoration: BoxDecoration(
         color: AppColors.accentTeal.withValues(alpha: 0.1),
         shape: BoxShape.circle,
@@ -391,8 +409,18 @@ class _WifiConnectScreenState extends State<WifiConnectScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.secondaryText)),
-            Text(value,  style: AppTextStyles.cardTitle.copyWith(color: AppColors.primaryText)),
+            Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.secondaryText,
+              ),
+            ),
+            Text(
+              value,
+              style: AppTextStyles.cardTitle.copyWith(
+                color: AppColors.primaryText,
+              ),
+            ),
           ],
         ),
       ],
