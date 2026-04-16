@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -9,17 +10,16 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/station_models.dart';
 import '../../core/repositories/price_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class PriceHistoryScreen extends StatefulWidget {
+class PriceHistoryScreen extends ConsumerStatefulWidget {
   const PriceHistoryScreen({super.key});
 
   @override
-  State<PriceHistoryScreen> createState() => _PriceHistoryScreenState();
+  ConsumerState<PriceHistoryScreen> createState() => _PriceHistoryScreenState();
 }
 
-class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
+class _PriceHistoryScreenState extends ConsumerState<PriceHistoryScreen> {
   late final PriceRepository _priceRepository;
 
   bool _initialized = false;
@@ -33,9 +33,7 @@ class _PriceHistoryScreenState extends State<PriceHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _priceRepository = PriceRepository(apiClient: apiClient);
+    _priceRepository = ref.read(priceRepositoryProvider);
   }
 
   @override

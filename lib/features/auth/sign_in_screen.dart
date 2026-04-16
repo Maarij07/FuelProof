@@ -1,44 +1,31 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/models/error_models.dart';
-import '../../core/repositories/auth_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 import 'utils/auth_validators.dart';
 
-class SignInScreen extends StatefulWidget {
+class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
   @override
-  State<SignInScreen> createState() => _SignInScreenState();
+  ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
 
-class _SignInScreenState extends State<SignInScreen> {
+class _SignInScreenState extends ConsumerState<SignInScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  late final AuthRepository _authRepository;
-
   bool _obscurePassword = true;
   bool _rememberMe = false;
   bool _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final tokenManager = TokenManager();
-    _authRepository = AuthRepository(
-      apiClient: ApiClient(tokenManager: tokenManager),
-      tokenManager: tokenManager,
-    );
-  }
 
   @override
   void dispose() {
@@ -59,10 +46,12 @@ class _SignInScreenState extends State<SignInScreen> {
     });
 
     try {
-      await _authRepository.login(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
+      await ref
+          .read(authRepositoryProvider)
+          .login(
+            email: _emailController.text,
+            password: _passwordController.text,
+          );
 
       if (!mounted) {
         return;

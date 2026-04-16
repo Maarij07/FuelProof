@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -8,18 +9,17 @@ import '../../core/models/error_models.dart';
 import '../../core/models/station_models.dart';
 import '../../core/repositories/price_repository.dart';
 import '../../core/repositories/station_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class CheapestFuelScreen extends StatefulWidget {
+class CheapestFuelScreen extends ConsumerStatefulWidget {
   const CheapestFuelScreen({super.key});
 
   @override
-  State<CheapestFuelScreen> createState() => _CheapestFuelScreenState();
+  ConsumerState<CheapestFuelScreen> createState() => _CheapestFuelScreenState();
 }
 
-class _CheapestFuelScreenState extends State<CheapestFuelScreen> {
+class _CheapestFuelScreenState extends ConsumerState<CheapestFuelScreen> {
   static const double _defaultLat = 31.5204;
   static const double _defaultLng = 74.3587;
 
@@ -36,10 +36,8 @@ class _CheapestFuelScreenState extends State<CheapestFuelScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _priceRepository = PriceRepository(apiClient: apiClient);
-    _stationRepository = StationRepository(apiClient: apiClient);
+    _priceRepository = ref.read(priceRepositoryProvider);
+    _stationRepository = ref.read(stationRepositoryProvider);
     _loadCheapest();
   }
 

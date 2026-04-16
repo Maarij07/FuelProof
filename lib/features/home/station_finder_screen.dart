@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -7,18 +8,18 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/station_models.dart';
 import '../../core/repositories/station_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 import '../../shared/widgets/app_bottom_navigation_bar.dart';
 
-class StationFinderScreen extends StatefulWidget {
+class StationFinderScreen extends ConsumerStatefulWidget {
   const StationFinderScreen({super.key});
 
   @override
-  State<StationFinderScreen> createState() => _StationFinderScreenState();
+  ConsumerState<StationFinderScreen> createState() =>
+      _StationFinderScreenState();
 }
 
-class _StationFinderScreenState extends State<StationFinderScreen> {
+class _StationFinderScreenState extends ConsumerState<StationFinderScreen> {
   static const double _defaultLat = 31.5204;
   static const double _defaultLng = 74.3587;
 
@@ -36,9 +37,7 @@ class _StationFinderScreenState extends State<StationFinderScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _stationRepository = StationRepository(apiClient: apiClient);
+    _stationRepository = ref.read(stationRepositoryProvider);
     _loadStations();
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -7,17 +8,16 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/fleet_models.dart';
 import '../../core/repositories/fleet_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class FleetDriversScreen extends StatefulWidget {
+class FleetDriversScreen extends ConsumerStatefulWidget {
   const FleetDriversScreen({super.key});
 
   @override
-  State<FleetDriversScreen> createState() => _FleetDriversScreenState();
+  ConsumerState<FleetDriversScreen> createState() => _FleetDriversScreenState();
 }
 
-class _FleetDriversScreenState extends State<FleetDriversScreen> {
+class _FleetDriversScreenState extends ConsumerState<FleetDriversScreen> {
   late final FleetRepository _fleetRepository;
 
   bool _initialized = false;
@@ -29,9 +29,7 @@ class _FleetDriversScreenState extends State<FleetDriversScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _fleetRepository = FleetRepository(apiClient: apiClient);
+    _fleetRepository = ref.read(fleetRepositoryProvider);
     _loadDrivers();
   }
 

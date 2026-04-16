@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -11,18 +12,18 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/transaction_models.dart';
 import '../../core/repositories/transaction_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class TransactionDetailScreen extends StatefulWidget {
+class TransactionDetailScreen extends ConsumerStatefulWidget {
   const TransactionDetailScreen({super.key});
 
   @override
-  State<TransactionDetailScreen> createState() =>
+  ConsumerState<TransactionDetailScreen> createState() =>
       _TransactionDetailScreenState();
 }
 
-class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
+class _TransactionDetailScreenState
+    extends ConsumerState<TransactionDetailScreen> {
   late final TransactionRepository _transactionRepository;
 
   bool _initialized = false;
@@ -36,9 +37,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _transactionRepository = TransactionRepository(apiClient: apiClient);
+    _transactionRepository = ref.read(transactionRepositoryProvider);
   }
 
   @override
@@ -138,7 +137,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     setState(() => _isDownloadingReceipt = true);
 
     try {
-      final bytes = await _transactionRepository.downloadReceipt(transaction.id);
+      final bytes = await _transactionRepository.downloadReceipt(
+        transaction.id,
+      );
       final dir = await getApplicationDocumentsDirectory();
       final suffix = transaction.id.length > 8
           ? transaction.id.substring(transaction.id.length - 8)
@@ -525,7 +526,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: _isDownloadingReceipt ? null : _downloadReceipt,
+                            onPressed: _isDownloadingReceipt
+                                ? null
+                                : _downloadReceipt,
                             icon: _isDownloadingReceipt
                                 ? const SizedBox(
                                     width: 18,
@@ -536,9 +539,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                                     ),
                                   )
                                 : const Icon(Icons.download_rounded),
-                            label: Text(_isDownloadingReceipt
-                                ? 'Downloading...'
-                                : 'Download Receipt'),
+                            label: Text(
+                              _isDownloadingReceipt
+                                  ? 'Downloading...'
+                                  : 'Download Receipt',
+                            ),
                           ),
                         ),
                         SizedBox(height: AppSpacing.sm),

@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_constants.dart';
@@ -7,18 +8,18 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/transaction_models.dart';
 import '../../core/repositories/transaction_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class TransactionHistoryScreen extends StatefulWidget {
+class TransactionHistoryScreen extends ConsumerStatefulWidget {
   const TransactionHistoryScreen({super.key});
 
   @override
-  State<TransactionHistoryScreen> createState() =>
+  ConsumerState<TransactionHistoryScreen> createState() =>
       _TransactionHistoryScreenState();
 }
 
-class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
+class _TransactionHistoryScreenState
+    extends ConsumerState<TransactionHistoryScreen> {
   late final TransactionRepository _transactionRepository;
   late final TextEditingController _searchController;
 
@@ -32,9 +33,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _transactionRepository = TransactionRepository(apiClient: apiClient);
+    _transactionRepository = ref.read(transactionRepositoryProvider);
     _loadTransactions();
   }
 
@@ -180,7 +179,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                   border: InputBorder.none,
-                  prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                   contentPadding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                 ),
               ),

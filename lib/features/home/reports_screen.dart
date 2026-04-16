@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -8,18 +9,17 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/transaction_models.dart';
 import '../../core/repositories/transaction_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 import '../../shared/widgets/app_bottom_navigation_bar.dart';
 
-class ReportsScreen extends StatefulWidget {
+class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
 
   @override
-  State<ReportsScreen> createState() => _ReportsScreenState();
+  ConsumerState<ReportsScreen> createState() => _ReportsScreenState();
 }
 
-class _ReportsScreenState extends State<ReportsScreen> {
+class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   late final TransactionRepository _transactionRepository;
 
   bool _isLoading = true;
@@ -30,10 +30,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    _transactionRepository = TransactionRepository(
-      apiClient: ApiClient(tokenManager: tokenManager),
-    );
+    _transactionRepository = ref.read(transactionRepositoryProvider);
     _loadTransactions();
   }
 

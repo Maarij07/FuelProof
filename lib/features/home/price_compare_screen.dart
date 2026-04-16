@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -7,17 +8,16 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/station_models.dart';
 import '../../core/repositories/price_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class PriceCompareScreen extends StatefulWidget {
+class PriceCompareScreen extends ConsumerStatefulWidget {
   const PriceCompareScreen({super.key});
 
   @override
-  State<PriceCompareScreen> createState() => _PriceCompareScreenState();
+  ConsumerState<PriceCompareScreen> createState() => _PriceCompareScreenState();
 }
 
-class _PriceCompareScreenState extends State<PriceCompareScreen> {
+class _PriceCompareScreenState extends ConsumerState<PriceCompareScreen> {
   static const double _defaultLat = 31.5204;
   static const double _defaultLng = 74.3587;
 
@@ -31,9 +31,7 @@ class _PriceCompareScreenState extends State<PriceCompareScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _priceRepository = PriceRepository(apiClient: apiClient);
+    _priceRepository = ref.read(priceRepositoryProvider);
     _loadPrices();
   }
 

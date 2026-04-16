@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -8,17 +9,16 @@ import '../../core/models/error_models.dart';
 import '../../core/models/station_models.dart';
 import '../../core/repositories/price_repository.dart';
 import '../../core/repositories/station_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class PriceAlertsScreen extends StatefulWidget {
+class PriceAlertsScreen extends ConsumerStatefulWidget {
   const PriceAlertsScreen({super.key});
 
   @override
-  State<PriceAlertsScreen> createState() => _PriceAlertsScreenState();
+  ConsumerState<PriceAlertsScreen> createState() => _PriceAlertsScreenState();
 }
 
-class _PriceAlertsScreenState extends State<PriceAlertsScreen> {
+class _PriceAlertsScreenState extends ConsumerState<PriceAlertsScreen> {
   static const double _defaultLat = 31.5204;
   static const double _defaultLng = 74.3587;
 
@@ -33,10 +33,8 @@ class _PriceAlertsScreenState extends State<PriceAlertsScreen> {
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _priceRepository = PriceRepository(apiClient: apiClient);
-    _stationRepository = StationRepository(apiClient: apiClient);
+    _priceRepository = ref.read(priceRepositoryProvider);
+    _stationRepository = ref.read(stationRepositoryProvider);
     _loadData();
   }
 

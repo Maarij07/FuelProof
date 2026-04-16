@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -8,20 +9,20 @@ import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/transaction_models.dart';
 import '../../core/repositories/transaction_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class TransactionSuccessScreen extends StatefulWidget {
+class TransactionSuccessScreen extends ConsumerStatefulWidget {
   final String? transactionId;
 
   const TransactionSuccessScreen({super.key, this.transactionId});
 
   @override
-  State<TransactionSuccessScreen> createState() =>
+  ConsumerState<TransactionSuccessScreen> createState() =>
       _TransactionSuccessScreenState();
 }
 
-class _TransactionSuccessScreenState extends State<TransactionSuccessScreen>
+class _TransactionSuccessScreenState
+    extends ConsumerState<TransactionSuccessScreen>
     with TickerProviderStateMixin {
   late final TransactionRepository _transactionRepository;
 
@@ -41,9 +42,7 @@ class _TransactionSuccessScreenState extends State<TransactionSuccessScreen>
   void initState() {
     super.initState();
 
-    final tokenManager = TokenManager();
-    final apiClient = ApiClient(tokenManager: tokenManager);
-    _transactionRepository = TransactionRepository(apiClient: apiClient);
+    _transactionRepository = ref.read(transactionRepositoryProvider);
 
     _scaleAnimationController = AnimationController(
       duration: AppDurations.long,

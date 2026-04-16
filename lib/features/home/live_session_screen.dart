@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -14,15 +15,16 @@ import '../../core/services/app_logger.dart';
 import '../../core/services/hardware_service.dart';
 import '../../core/services/token_manager.dart';
 import '../../core/services/transaction_sync_service.dart';
+import '../../core/state/app_providers.dart';
 
-class LiveSessionScreen extends StatefulWidget {
+class LiveSessionScreen extends ConsumerStatefulWidget {
   const LiveSessionScreen({super.key});
 
   @override
-  State<LiveSessionScreen> createState() => _LiveSessionScreenState();
+  ConsumerState<LiveSessionScreen> createState() => _LiveSessionScreenState();
 }
 
-class _LiveSessionScreenState extends State<LiveSessionScreen> {
+class _LiveSessionScreenState extends ConsumerState<LiveSessionScreen> {
   // ── Dependencies ────────────────────────────────────────────────────────────
   late final ApiClient _apiClient;
   late final TokenManager _tokenManager;
@@ -46,10 +48,10 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
 
   // ── Session result ───────────────────────────────────────────────────────────
   bool _isProcessing = false;
-  bool _syncPending = false;        // saved locally, sync in progress
+  bool _syncPending = false; // saved locally, sync in progress
   HardwareSessionResult? _result;
   String? _processingError;
-  Timer? _wifiSwitchTimer;          // 1-min countdown to WiFi switch prompt
+  Timer? _wifiSwitchTimer; // 1-min countdown to WiFi switch prompt
   bool _showWifiSwitchPrompt = false;
 
   // ── Cached metadata fetched at init ──────────────────────────────────────────
@@ -60,9 +62,9 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
   @override
   void initState() {
     super.initState();
-    _tokenManager = TokenManager();
-    _apiClient = ApiClient(tokenManager: _tokenManager);
-    _transactionRepository = TransactionRepository(apiClient: _apiClient);
+    _tokenManager = ref.read(tokenManagerProvider);
+    _apiClient = ref.read(apiClientProvider);
+    _transactionRepository = ref.read(transactionRepositoryProvider);
   }
 
   @override
@@ -74,27 +76,30 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map<String, dynamic>) {
       _sessionId = args['sessionId'] as String?;
-      _nozzleId  = args['nozzleId']  as String?;
+      _nozzleId = args['nozzleId'] as String?;
 
       // Pre-loaded by wifi_connect_screen Phase 1 (before WiFi switch).
       // If all three are present and valid, skip the backend fetch in Phase 1.
-      final userId       = args['userId']       as String?;
-      final fuelTypeName = args['fuelType']     as String?;
-      final price        = args['pricePerLitre'] as double?;
+      final userId = args['userId'] as String?;
+      final fuelTypeName = args['fuelType'] as String?;
+      final price = args['pricePerLitre'] as double?;
 
-      if (userId != null && userId.isNotEmpty &&
-          fuelTypeName != null && price != null && price > 0) {
+      if (userId != null &&
+          userId.isNotEmpty &&
+          fuelTypeName != null &&
+          price != null &&
+          price > 0) {
         _userId = userId;
         _fuelType = FuelType.values.firstWhere(
           (e) => e.name == fuelTypeName,
           orElse: () => FuelType.petrol,
         );
-        _pricePerLitre  = price;
+        _pricePerLitre = price;
         _backendDataReady = true;
         AppLogger.log(
           'Session',
           'Backend data pre-loaded — skipping Phase 1 '
-          '(fuel=${_fuelType.name} price=$_pricePerLitre)',
+              '(fuel=${_fuelType.name} price=$_pricePerLitre)',
         );
       }
     }
@@ -108,7 +113,10 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
       return;
     }
 
-    AppLogger.log('Session', 'Starting — sessionId=$_sessionId nozzleId=$_nozzleId');
+    AppLogger.log(
+      'Session',
+      'Starting — sessionId=$_sessionId nozzleId=$_nozzleId',
+    );
     _initialize();
   }
 
@@ -144,8 +152,9 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
         final matchingPrice = prices
             .where((p) => p.fuelType == _fuelType)
             .toList();
-        _pricePerLitre =
-            matchingPrice.isNotEmpty ? matchingPrice.first.pricePerLitre : 0.0;
+        _pricePerLitre = matchingPrice.isNotEmpty
+            ? matchingPrice.first.pricePerLitre
+            : 0.0;
 
         // Guard: backend rejects price_per_litre <= 0 with a 422 error.
         if (_pricePerLitre <= 0.0) {
@@ -241,15 +250,15 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
   Future<void> _saveAndSync(HardwareSessionResult result) async {
     AppLogger.log('Session', 'Saving to local queue and attempting sync');
     final transactionId = await TransactionSyncService.instance.save(
-      sessionId:       _sessionId!,
-      nozzleId:        _nozzleId!,
-      userId:          _userId,
-      fuelType:        _fuelType,
+      sessionId: _sessionId!,
+      nozzleId: _nozzleId!,
+      userId: _userId,
+      fuelType: _fuelType,
       flowmeterLitres: result.flowmeterLitres,
       dispenserLitres: result.dispenserLitres,
-      pricePerLitre:   _pricePerLitre,
-      tamperDetected:  result.tamperDetected,
-      photo:           result.capturedImage,
+      pricePerLitre: _pricePerLitre,
+      tamperDetected: result.tamperDetected,
+      photo: result.capturedImage,
     );
 
     if (!mounted) return;
@@ -263,8 +272,8 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
         _showWifiSwitchPrompt = false;
         _result = result.withSyncResult(
           transactionId: transactionId,
-          fraudFlagged: result.tamperDetected ||
-              result.discrepancy.abs() > 0.05,
+          fraudFlagged:
+              result.tamperDetected || result.discrepancy.abs() > 0.05,
         );
       });
       if (mounted) {
@@ -311,7 +320,8 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
 
   Future<bool> _onWillPop() async {
     // Allow back freely when session hasn't started or is fully done.
-    final sessionActive = !_isInitializing &&
+    final sessionActive =
+        !_isInitializing &&
         _initError == null &&
         _result == null &&
         _lastReading != null;
@@ -332,10 +342,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'Leave',
-              style: TextStyle(color: AppColors.alert),
-            ),
+            child: Text('Leave', style: TextStyle(color: AppColors.alert)),
           ),
         ],
       ),
@@ -605,10 +612,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
               color: color,
             ),
           ),
-          Text(
-            'Litres',
-            style: AppTextStyles.caption.copyWith(color: color),
-          ),
+          Text('Litres', style: AppTextStyles.caption.copyWith(color: color)),
           SizedBox(height: AppSpacing.xs),
           Text(
             sublabel,
@@ -640,9 +644,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           ),
           Text(
             'PKR ${_estimatedCost.toStringAsFixed(2)}',
-            style: AppTextStyles.cardTitle.copyWith(
-              color: AppColors.brandNavy,
-            ),
+            style: AppTextStyles.cardTitle.copyWith(color: AppColors.brandNavy),
           ),
         ],
       ),
@@ -672,7 +674,9 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
       borderColor = AppColors.alert.withValues(alpha: 0.4);
       textColor = AppColors.alert;
       iconData = Icons.gpp_bad_outlined;
-      title = result.tamperDetected ? 'Tamper + Discrepancy' : 'Discrepancy Detected';
+      title = result.tamperDetected
+          ? 'Tamper + Discrepancy'
+          : 'Discrepancy Detected';
 
       if (diff > 0.05) {
         subtitle =
@@ -738,11 +742,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
         SizedBox(height: AppSpacing.sm),
         ClipRRect(
           borderRadius: BorderRadius.circular(AppBorderRadius.card),
-          child: Image.memory(
-            bytes,
-            width: double.infinity,
-            fit: BoxFit.cover,
-          ),
+          child: Image.memory(bytes, width: double.infinity, fit: BoxFit.cover),
         ),
       ],
     );
@@ -785,11 +785,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
         children: [
           Icon(Icons.error_outline_rounded, color: AppColors.alert, size: 36),
           SizedBox(height: AppSpacing.md),
-          Text(
-            message,
-            style: AppTextStyles.body,
-            textAlign: TextAlign.center,
-          ),
+          Text(message, style: AppTextStyles.body, textAlign: TextAlign.center),
           SizedBox(height: AppSpacing.md),
           ElevatedButton(
             onPressed: () {
@@ -825,16 +821,20 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
       child: Row(
         children: [
           SizedBox(
-            width: 16, height: 16,
+            width: 16,
+            height: 16,
             child: CircularProgressIndicator(
-              strokeWidth: 2, color: AppColors.accentTeal,
+              strokeWidth: 2,
+              color: AppColors.accentTeal,
             ),
           ),
           SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               'Session saved. Syncing to server...',
-              style: AppTextStyles.caption.copyWith(color: AppColors.accentTeal),
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.accentTeal,
+              ),
             ),
           ),
         ],
@@ -919,11 +919,7 @@ class _LiveSessionScreenState extends State<LiveSessionScreen> {
           else
             Icon(icon, size: 40, color: AppColors.accentTeal),
           SizedBox(height: AppSpacing.md),
-          Text(
-            label,
-            style: AppTextStyles.body,
-            textAlign: TextAlign.center,
-          ),
+          Text(label, style: AppTextStyles.body, textAlign: TextAlign.center),
         ],
       ),
     );

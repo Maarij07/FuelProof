@@ -1,19 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/state/app_providers.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
-  final TokenManager _tokenManager = TokenManager();
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   Timer? _navigationTimer;
 
   @override
@@ -24,7 +24,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   void _navigateAfterSplash() async {
     _navigationTimer = Timer(const Duration(milliseconds: 1800), () async {
-      final isLoggedIn = await _tokenManager.isLoggedIn();
+      final isLoggedIn = await ref.read(authStatusProvider.future);
 
       if (mounted) {
         Navigator.of(
