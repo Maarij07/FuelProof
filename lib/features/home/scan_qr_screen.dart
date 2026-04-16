@@ -146,6 +146,10 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
         elevation: 0,
         backgroundColor: AppColors.white,
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: Icon(Icons.arrow_back_rounded, color: AppColors.primaryText),
+        ),
         title: Text('Scan QR Code', style: AppTextStyles.sectionHeading),
         actions: [
           if (_isScanPermissionGranted)
@@ -390,7 +394,11 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
       final uri = Uri.tryParse(qrValue);
       final nozzleId = (uri != null && uri.pathSegments.isNotEmpty)
           ? uri.pathSegments.last.trim()
-          : qrValue.replaceFirst('fuelguard://nozzle/', '').split('?').first.trim();
+          : qrValue
+                .replaceFirst('fuelguard://nozzle/', '')
+                .split('?')
+                .first
+                .trim();
       AppLogger.log('QR', 'Nozzle QR detected — nozzle_id=$nozzleId');
       if (!mounted) return;
       final navigator = Navigator.of(context);
@@ -405,7 +413,10 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
 
     // ── Old WiFi config QR — tell developer to update QR format ──────────────
     if (qrValue.startsWith('WIFI:')) {
-      AppLogger.warn('QR', 'Old WiFi QR detected — nozzle_id cannot be determined');
+      AppLogger.warn(
+        'QR',
+        'Old WiFi QR detected — nozzle_id cannot be determined',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -450,16 +461,16 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
     try {
       AppLogger.log('QR', 'Calling /sessions/scan ...');
       final result = await _sessionRepository.scanQrCode(qrValue);
-      AppLogger.log('QR', 'Session OK — id=${result.sessionId} nozzle=${result.nozzleId}');
+      AppLogger.log(
+        'QR',
+        'Session OK — id=${result.sessionId} nozzle=${result.nozzleId}',
+      );
 
       if (!mounted) return;
 
       Navigator.of(context).pushReplacementNamed(
         '/live-session',
-        arguments: {
-          'sessionId': result.sessionId,
-          'nozzleId': result.nozzleId,
-        },
+        arguments: {'sessionId': result.sessionId, 'nozzleId': result.nozzleId},
       );
     } catch (e) {
       AppLogger.error('QR', 'Scan failed: $e');

@@ -19,6 +19,7 @@ class CreateAccountScreen extends StatefulWidget {
 
 class _CreateAccountScreenState extends State<CreateAccountScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
+  static const String _pakistanCountryCode = '+92';
 
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
@@ -53,6 +54,19 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     super.dispose();
   }
 
+  String _buildPakistaniPhoneNumber(String localPhone) {
+    final digitsOnly = localPhone.replaceAll(RegExp(r'\D'), '');
+    if (digitsOnly.isEmpty) {
+      return '';
+    }
+
+    final normalizedLocal = digitsOnly.startsWith('0')
+        ? digitsOnly.substring(1)
+        : digitsOnly;
+
+    return '$_pakistanCountryCode$normalizedLocal';
+  }
+
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
 
@@ -71,7 +85,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         password: _passwordController.text,
         phone: _phoneController.text.trim().isEmpty
             ? null
-            : _phoneController.text.trim(),
+            : _buildPakistaniPhoneNumber(_phoneController.text.trim()),
       );
 
       if (!mounted) {
@@ -174,7 +188,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   Text(
                     'Set up secure access to FuelGuard',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.secondaryText,
+                      color: AppColors.primaryText.withValues(alpha: 0.88),
                     ),
                   ),
                   SizedBox(height: AppSpacing.xxl),
@@ -248,9 +262,27 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                                 ],
                                 decoration: const InputDecoration(
                                   labelText: 'Phone Number (optional)',
-                                  prefixIcon: Icon(Icons.phone_outlined),
+                                  prefixIcon: SizedBox(
+                                    width: 52,
+                                    child: Center(
+                                      child: Text(
+                                        '🇵🇰',
+                                        style: TextStyle(fontSize: 20),
+                                      ),
+                                    ),
+                                  ),
+                                  prefixText: '$_pakistanCountryCode ',
                                 ),
-                                validator: AuthValidators.validatePhoneNumber,
+                                validator: (value) {
+                                  final phone = (value ?? '').trim();
+                                  if (phone.isEmpty) {
+                                    return null;
+                                  }
+
+                                  return AuthValidators.validatePhoneNumber(
+                                    _buildPakistaniPhoneNumber(phone),
+                                  );
+                                },
                               ),
                               SizedBox(height: AppSpacing.md),
                               TextFormField(

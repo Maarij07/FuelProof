@@ -5,16 +5,14 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/models/error_models.dart';
-import '../../core/repositories/auth_repository.dart';
-import '../../core/services/api_client.dart';
 import '../../core/services/firebase_auth_service.dart';
-import '../../core/services/token_manager.dart';
 import 'utils/auth_validators.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String email;
+  final String oobCode;
 
-  const ResetPasswordScreen({super.key, this.email = ''});
+  const ResetPasswordScreen({super.key, this.email = '', this.oobCode = ''});
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
@@ -24,40 +22,67 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   static const String _backgroundAsset = 'assets/images/authimage.png';
 
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  late final AuthRepository _authRepository;
   late final FirebaseAuthService _firebaseAuthService;
 
+  String? _accountEmail;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSubmitting = false;
+  bool _isLoadingResetEmail = true;
 
   @override
   void initState() {
     super.initState();
-    _emailController.text = widget.email;
-
-    final tokenManager = TokenManager();
-    _authRepository = AuthRepository(
-      apiClient: ApiClient(tokenManager: tokenManager),
-      tokenManager: tokenManager,
-    );
     _firebaseAuthService = FirebaseAuthService();
+    _accountEmail = widget.email.trim().isEmpty ? null : widget.email.trim();
+
+    if (widget.oobCode.trim().isEmpty) {
+      _isLoadingResetEmail = false;
+      return;
+    }
+
+    _loadEmailFromCode();
   }
 
   @override
   void dispose() {
-    _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadEmailFromCode() async {
+    try {
+      final email = await _firebaseAuthService.verifyPasswordResetCode(
+        oobCode: widget.oobCode.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _accountEmail = email;
+        _isLoadingResetEmail = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingResetEmail = false;
+      });
+    }
+  }
+
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
+
+    if (widget.oobCode.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Open the reset link from your email first.'),
+        ),
+      );
+      return;
+    }
 
     if (!_formKey.currentState!.validate()) {
       return;
@@ -68,13 +93,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
 
     try {
-      final firebaseIdToken = await _firebaseAuthService.signInAndGetIdToken(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-
-      await _authRepository.resetPassword(
-        firebaseIdToken: firebaseIdToken,
+      await _firebaseAuthService.confirmPasswordReset(
+        oobCode: widget.oobCode.trim(),
         newPassword: _passwordController.text,
       );
 
@@ -119,6 +139,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final emailText =
+        _accountEmail ??
+        (widget.email.trim().isEmpty ? 'your email' : widget.email.trim());
+
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
       body: Stack(
@@ -190,7 +214,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   Text(
                     'Use the email link to sign in and choose a new password.',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.secondaryText,
+                      color: AppColors.primaryText.withValues(alpha: 0.88),
                     ),
                   ),
                   SizedBox(height: AppSpacing.xxl),
@@ -227,18 +251,26 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                autofillHints: const [AutofillHints.email],
-                                decoration: const InputDecoration(
-                                  labelText: 'Email',
-                                  prefixIcon: Icon(Icons.mail_outline_rounded),
+                              if (_isLoadingResetEmail)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              else ...[
+                                TextFormField(
+                                  initialValue: emailText,
+                                  enabled: false,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Account Email',
+                                    prefixIcon: Icon(
+                                      Icons.mail_outline_rounded,
+                                    ),
+                                  ),
                                 ),
-                                validator: AuthValidators.validateEmail,
-                              ),
-                              SizedBox(height: AppSpacing.md),
+                                SizedBox(height: AppSpacing.md),
+                              ],
                               TextFormField(
                                 controller: _passwordController,
                                 obscureText: _obscurePassword,
@@ -299,10 +331,25 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                 onFieldSubmitted: (_) => _submit(),
                               ),
                               SizedBox(height: AppSpacing.lg),
+                              if (widget.oobCode.trim().isEmpty) ...[
+                                Text(
+                                  'A valid reset link is required to continue.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: AppColors.secondaryText,
+                                      ),
+                                ),
+                                SizedBox(height: AppSpacing.md),
+                              ],
                               SizedBox(
                                 height: 52,
                                 child: ElevatedButton(
-                                  onPressed: _isSubmitting ? null : _submit,
+                                  onPressed:
+                                      _isSubmitting ||
+                                          widget.oobCode.trim().isEmpty
+                                      ? null
+                                      : _submit,
                                   child: _isSubmitting
                                       ? SizedBox(
                                           width: 20,

@@ -104,18 +104,17 @@ class _BrandHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.white.withValues(alpha: 0.75)),
-          ),
-          child: const Icon(
-            Icons.local_gas_station_rounded,
-            color: AppColors.accentTeal,
-            size: 22,
+        ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            width: 72,
+            height: 72,
+            color: AppColors.white.withValues(alpha: 0.90),
+            padding: const EdgeInsets.all(10),
+            child: Image.asset(
+              'assets/images/sign_in.png',
+              fit: BoxFit.contain,
+            ),
           ),
         ),
         SizedBox(height: AppSpacing.md),
@@ -132,7 +131,7 @@ class _BrandHeader extends StatelessWidget {
         Text(
           'Trust. Verify. Save.',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: AppColors.secondaryText,
+            color: AppColors.primaryText.withValues(alpha: 0.88),
             fontSize: 16,
             fontWeight: FontWeight.w500,
           ),
@@ -200,10 +199,6 @@ class _LoginFormCard extends StatelessWidget {
                 height: 52,
                 child: ElevatedButton(
                   onPressed: onCreateAccount,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brandNavy,
-                    foregroundColor: AppColors.white,
-                  ),
                   child: const Text('Create Account'),
                 ),
               ),

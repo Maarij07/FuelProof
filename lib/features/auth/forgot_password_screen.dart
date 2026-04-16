@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/models/error_models.dart';
-import '../../core/repositories/auth_repository.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/token_manager.dart';
+import '../../core/services/firebase_auth_service.dart';
 import 'utils/auth_validators.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -23,18 +21,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
 
-  late final AuthRepository _authRepository;
+  late final FirebaseAuthService _firebaseAuthService;
 
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    final tokenManager = TokenManager();
-    _authRepository = AuthRepository(
-      apiClient: ApiClient(tokenManager: tokenManager),
-      tokenManager: tokenManager,
-    );
+    _firebaseAuthService = FirebaseAuthService();
   }
 
   @override
@@ -55,7 +49,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      await _authRepository.forgotPassword(email: _emailController.text);
+      await _firebaseAuthService.sendPasswordResetEmail(
+        email: _emailController.text.trim(),
+      );
 
       if (!mounted) {
         return;
@@ -66,7 +62,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
 
       Navigator.of(context).pushReplacementNamed(
-        '/otp-verify',
+        '/verification',
         arguments: {
           'email': _emailController.text.trim(),
           'flow': 'reset_password',
@@ -160,7 +156,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   Text(
                     'Enter your email to receive a reset link',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.secondaryText,
+                      color: AppColors.primaryText.withValues(alpha: 0.88),
                     ),
                   ),
                   SizedBox(height: AppSpacing.xxl),

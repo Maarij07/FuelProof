@@ -146,6 +146,41 @@ class AuthRepository {
     }
   }
 
+  /// Returns true only when backend explicitly marks the account/email verified.
+  Future<bool> isAccountVerified() async {
+    try {
+      final response = await apiClient.get<Map<String, dynamic>>('/users/me');
+
+      const boolKeys = <String>[
+        'is_verified',
+        'email_verified',
+        'is_email_verified',
+        'verified',
+      ];
+
+      for (final key in boolKeys) {
+        final value = response[key];
+        if (value is bool) {
+          return value;
+        }
+      }
+
+      final verificationStatus = response['verification_status'];
+      if (verificationStatus is String) {
+        return verificationStatus.toLowerCase() == 'verified';
+      }
+
+      final status = response['status'];
+      if (status is String) {
+        return status.toLowerCase() == 'verified';
+      }
+
+      return false;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Update user profile
   Future<User> updateProfile({
     String? fullName,

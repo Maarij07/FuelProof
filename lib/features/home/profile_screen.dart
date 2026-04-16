@@ -400,9 +400,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<String?> _pickAndUploadAvatar(ImageSource source) async {
     final bytes = await _pickImageBytes(source);
     if (bytes == null) return null;
-    return _authRepository.uploadAvatar(bytes, 'avatar.jpg').then(
-      (updated) => updated.avatarUrl,
-    );
+    return _authRepository
+        .uploadAvatar(bytes, 'avatar.jpg')
+        .then((updated) => updated.avatarUrl);
   }
 
   Future<void> _changeProfilePictureQuick() async {
@@ -428,10 +428,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
         e,
         'Unable to update profile picture right now',
       );
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _isUploadingAvatar = false);
     }
+  }
+
+  void _showProfileImagePreview({
+    required String? avatarUrl,
+    required String? fullName,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final bytes = _decodeAvatarData(avatarUrl);
+        final hasNetworkAvatar =
+            avatarUrl != null &&
+            avatarUrl.trim().isNotEmpty &&
+            !avatarUrl.startsWith('data:image/');
+
+        Widget preview;
+        if (bytes != null) {
+          preview = ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Image.memory(
+              bytes,
+              width: 260,
+              height: 260,
+              fit: BoxFit.cover,
+            ),
+          );
+        } else if (hasNetworkAvatar) {
+          preview = ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Image.network(
+              avatarUrl,
+              width: 260,
+              height: 260,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _avatarFallback(260, fullName),
+            ),
+          );
+        } else {
+          preview = _avatarFallback(260, fullName);
+        }
+
+        return AlertDialog(
+          title: const Text('Profile Image'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              preview,
+              SizedBox(height: AppSpacing.md),
+              Text(
+                fullName?.trim().isNotEmpty == true
+                    ? fullName!.trim()
+                    : 'Profile image',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.body,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   double get _completionValue {
@@ -515,10 +583,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       final source = await _pickAvatarSource();
                                       if (source == null) return;
 
-                                      setModalState(() => uploadingAvatar = true);
+                                      setModalState(
+                                        () => uploadingAvatar = true,
+                                      );
 
                                       try {
-                                        final url = await _pickAndUploadAvatar(source);
+                                        final url = await _pickAndUploadAvatar(
+                                          source,
+                                        );
                                         if (!context.mounted) return;
                                         setModalState(() {
                                           if (url != null) avatarDataUrl = url;
@@ -526,7 +598,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         });
                                       } catch (_) {
                                         if (!context.mounted) return;
-                                        setModalState(() => uploadingAvatar = false);
+                                        setModalState(
+                                          () => uploadingAvatar = false,
+                                        );
                                       }
                                     },
                               icon: uploadingAvatar
@@ -547,6 +621,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                         ],
+                      ),
+                      SizedBox(height: AppSpacing.sm),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showProfileImagePreview(
+                            avatarUrl: avatarDataUrl,
+                            fullName: nameController.text,
+                          ),
+                          icon: const Icon(Icons.visibility_outlined),
+                          label: const Text('View Profile Image'),
+                        ),
                       ),
                       SizedBox(height: AppSpacing.lg),
                       SizedBox(
@@ -624,9 +710,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _openChangePasswordSheet() async {
-    final currentPasswordController = TextEditingController();
-    final newPasswordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
+    final email = _user?.email.trim() ?? '';
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to find your account email.')),
+      );
+      return;
+    }
+
+    final rootContext = context;
     bool submitting = false;
 
     await showModalBottomSheet(
@@ -659,27 +751,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: AppTextStyles.sectionHeading,
                     ),
                     SizedBox(height: AppSpacing.md),
-                    TextFormField(
-                      controller: currentPasswordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Current Password',
+                    Text(
+                      'For security, we will send a password reset verification link to your account email.',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.secondaryText,
                       ),
                     ),
                     SizedBox(height: AppSpacing.sm),
                     TextFormField(
-                      controller: newPasswordController,
-                      obscureText: true,
+                      initialValue: email,
+                      enabled: false,
                       decoration: const InputDecoration(
-                        labelText: 'New Password',
-                      ),
-                    ),
-                    SizedBox(height: AppSpacing.sm),
-                    TextFormField(
-                      controller: confirmPasswordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Confirm New Password',
+                        labelText: 'Account Email',
+                        prefixIcon: Icon(Icons.mail_outline_rounded),
                       ),
                     ),
                     SizedBox(height: AppSpacing.md),
@@ -689,65 +773,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onPressed: submitting
                             ? null
                             : () async {
-                                final currentPassword =
-                                    currentPasswordController.text.trim();
-                                final newPassword = newPasswordController.text
-                                    .trim();
-                                final confirmPassword =
-                                    confirmPasswordController.text.trim();
-
-                                if (currentPassword.isEmpty ||
-                                    newPassword.isEmpty ||
-                                    confirmPassword.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'All password fields are required',
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                if (newPassword != confirmPassword) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'New passwords do not match',
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                if (newPassword.length < 8) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'New password must be at least 8 characters',
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-
                                 setModalState(() {
                                   submitting = true;
                                 });
 
                                 try {
-                                  await _authRepository.changePassword(
-                                    currentPassword: currentPassword,
-                                    newPassword: newPassword,
+                                  await _authRepository.forgotPassword(
+                                    email: email,
                                   );
                                   if (!context.mounted) return;
                                   Navigator.pop(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(
+                                    rootContext,
+                                  ).showSnackBar(
                                     const SnackBar(
                                       content: Text(
-                                        'Password updated successfully',
+                                        'Password reset link sent to your email.',
                                       ),
                                     ),
+                                  );
+                                  Navigator.of(rootContext).pushNamed(
+                                    '/verification',
+                                    arguments: {
+                                      'email': email,
+                                      'flow': 'reset_password',
+                                    },
                                   );
                                 } catch (e) {
                                   if (!context.mounted) return;
@@ -759,7 +809,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       content: Text(
                                         _resolveAppErrorMessage(
                                           e,
-                                          'Unable to change password right now',
+                                          'Unable to send reset link right now',
                                         ),
                                       ),
                                     ),
@@ -767,7 +817,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 }
                               },
                         child: Text(
-                          submitting ? 'Updating...' : 'Change Password',
+                          submitting ? 'Sending...' : 'Send Verification Link',
                         ),
                       ),
                     ),
@@ -1065,25 +1115,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     _buildMenuOption(
                       icon: Icons.info_outline_rounded,
-                      title: 'About FuelGuard',
-                      subtitle: 'Version, licenses, and app information',
+                      title: 'Who we are',
+                      subtitle: 'Meet the team behind FuelGuard',
                       iconBackgroundColor: AppColors.lightGray,
                       iconColor: AppColors.tertiaryText,
                       onTap: () {
                         _showInfoBottomSheet(
-                          title: 'About FuelGuard',
+                          title: 'Who we are',
                           sections: [
                             const MapEntry(
-                              'Our Mission',
-                              'FuelGuard helps drivers and stations build trust through secure QR verification, transparent records, and fraud-resistant fuel sessions.',
+                              'Muhammad Inam',
+                              'Id: 2212443\n2212443@szabist-isb.pk',
                             ),
                             const MapEntry(
-                              'App Version',
-                              'FuelGuard v1.0.0\nBuild: Debug configuration\nPlatform support: Android, iOS, and Web',
+                              'Manahil Sohail',
+                              'Id: 2212436\n2212436@szabist-isb.pk',
                             ),
                             const MapEntry(
-                              'Core Features',
-                              'Live session verification, transaction history, evidence reporting, profile management, and security controls for account protection.',
+                              'M. Ahmad Mehmood',
+                              'Id: 2212339\n2212339@szabist-isb.pk',
                             ),
                           ],
                         );
@@ -1151,7 +1201,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: _buildSummaryMetric(
                   label: 'Fuel Used',
                   value: '${_spendingSummary.totalLitres.toStringAsFixed(1)} L',
-                  accentColor: AppColors.brandNavy,
+                  accentColor: Theme.of(context).brightness == Brightness.dark
+                      ? AppColors.primaryText
+                      : AppColors.brandNavy,
                 ),
               ),
             ],
@@ -1249,6 +1301,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 size: 84,
                 fullName: user?.fullName,
                 avatarUrl: user?.avatarUrl,
+                onAvatarTap: user == null
+                    ? null
+                    : () => _showProfileImagePreview(
+                        avatarUrl: user.avatarUrl,
+                        fullName: user.fullName,
+                      ),
                 onTap: _isUploadingAvatar ? null : _changeProfilePictureQuick,
               ),
               SizedBox(width: AppSpacing.md),
@@ -1370,6 +1428,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required double size,
     required String? fullName,
     required String? avatarUrl,
+    VoidCallback? onAvatarTap,
     VoidCallback? onTap,
   }) {
     final bytes = _decodeAvatarData(avatarUrl);
@@ -1408,7 +1467,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          avatarChild,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onAvatarTap,
+              customBorder: const CircleBorder(),
+              child: avatarChild,
+            ),
+          ),
           Positioned(
             right: -2,
             bottom: -2,

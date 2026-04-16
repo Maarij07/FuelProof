@@ -56,8 +56,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       if (!mounted) return;
       final message =
           e is AppError && e.detail != null && e.detail!.trim().isNotEmpty
-              ? e.detail!
-              : 'Unable to load report data.';
+          ? e.detail!
+          : 'Unable to load report data.';
       setState(() {
         _errorMessage = message;
         _isLoading = false;
@@ -107,7 +107,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
     for (final t in _filtered) {
       final existing = map[t.fuelType];
       if (existing == null) {
-        map[t.fuelType] = _FuelStat(litres: t.litresDispensed, amount: t.totalAmount, count: 1);
+        map[t.fuelType] = _FuelStat(
+          litres: t.litresDispensed,
+          amount: t.totalAmount,
+          count: 1,
+        );
       } else {
         map[t.fuelType] = _FuelStat(
           litres: existing.litres + t.litresDispensed,
@@ -145,20 +149,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
             return d != null && d.year == month.year && d.month == month.month;
           })
           .fold(0.0, (sum, t) => sum + t.totalAmount);
-      return _MonthStat(
-        label: DateFormat('MMM').format(month),
-        amount: spent,
-      );
+      return _MonthStat(label: DateFormat('MMM').format(month), amount: spent);
     }).toList();
   }
 
   // ─── Formatters ───────────────────────────────────────────────────────────
 
   String _pkr(double amount) => NumberFormat.currency(
-        locale: 'en_PK',
-        symbol: 'PKR ',
-        decimalDigits: 0,
-      ).format(amount);
+    locale: 'en_PK',
+    symbol: 'PKR ',
+    decimalDigits: 0,
+  ).format(amount);
 
   String _fuelLabel(FuelType t) =>
       t.name[0].toUpperCase() + t.name.substring(1);
@@ -177,6 +178,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
         backgroundColor: AppColors.white,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          onPressed: () => Navigator.maybePop(context),
+          icon: Icon(Icons.arrow_back_rounded, color: AppColors.primaryText),
+        ),
         title: Text('Reports', style: AppTextStyles.sectionHeading),
         centerTitle: true,
         actions: [
@@ -189,25 +194,25 @@ class _ReportsScreenState extends State<ReportsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? _buildError()
-              : RefreshIndicator(
-                  onRefresh: _loadTransactions,
-                  child: ListView(
-                    padding: EdgeInsets.all(AppSpacing.md),
-                    children: [
-                      _buildPeriodSelector(),
-                      SizedBox(height: AppSpacing.lg),
-                      _buildSummaryCards(),
-                      SizedBox(height: AppSpacing.lg),
-                      _buildFuelBreakdown(),
-                      SizedBox(height: AppSpacing.lg),
-                      _buildPaymentBreakdown(),
-                      SizedBox(height: AppSpacing.lg),
-                      _buildMonthlyTrend(),
-                      SizedBox(height: AppSpacing.xxl),
-                    ],
-                  ),
-                ),
+          ? _buildError()
+          : RefreshIndicator(
+              onRefresh: _loadTransactions,
+              child: ListView(
+                padding: EdgeInsets.all(AppSpacing.md),
+                children: [
+                  _buildPeriodSelector(),
+                  SizedBox(height: AppSpacing.lg),
+                  _buildSummaryCards(),
+                  SizedBox(height: AppSpacing.lg),
+                  _buildFuelBreakdown(),
+                  SizedBox(height: AppSpacing.lg),
+                  _buildPaymentBreakdown(),
+                  SizedBox(height: AppSpacing.lg),
+                  _buildMonthlyTrend(),
+                  SizedBox(height: AppSpacing.xxl),
+                ],
+              ),
+            ),
     );
   }
 
@@ -220,9 +225,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
           children: [
             Icon(Icons.error_outline_rounded, color: AppColors.alert, size: 48),
             SizedBox(height: AppSpacing.md),
-            Text(_errorMessage!, style: AppTextStyles.body, textAlign: TextAlign.center),
+            Text(
+              _errorMessage!,
+              style: AppTextStyles.body,
+              textAlign: TextAlign.center,
+            ),
             SizedBox(height: AppSpacing.md),
-            ElevatedButton(onPressed: _loadTransactions, child: const Text('Retry')),
+            ElevatedButton(
+              onPressed: _loadTransactions,
+              child: const Text('Retry'),
+            ),
           ],
         ),
       ),
@@ -282,21 +294,52 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Summary', style: AppTextStyles.sectionHeading.copyWith(fontSize: 20)),
+        Text(
+          'Summary',
+          style: AppTextStyles.sectionHeading.copyWith(fontSize: 20),
+        ),
         SizedBox(height: AppSpacing.md),
         Row(
           children: [
-            Expanded(child: _statCard('Total Spent', _pkr(_totalSpent), Icons.payments_rounded, AppColors.brandNavy)),
+            Expanded(
+              child: _statCard(
+                'Total Spent',
+                _pkr(_totalSpent),
+                Icons.payments_rounded,
+                AppColors.brandNavy,
+              ),
+            ),
             SizedBox(width: AppSpacing.sm),
-            Expanded(child: _statCard('Total Litres', '${_totalLitres.toStringAsFixed(1)} L', Icons.local_gas_station_rounded, AppColors.accentTeal)),
+            Expanded(
+              child: _statCard(
+                'Total Litres',
+                '${_totalLitres.toStringAsFixed(1)} L',
+                Icons.local_gas_station_rounded,
+                AppColors.accentTeal,
+              ),
+            ),
           ],
         ),
         SizedBox(height: AppSpacing.sm),
         Row(
           children: [
-            Expanded(child: _statCard('Completed', '$_completedCount / ${_filtered.length}', Icons.receipt_long_rounded, AppColors.success)),
+            Expanded(
+              child: _statCard(
+                'Completed',
+                '$_completedCount / ${_filtered.length}',
+                Icons.receipt_long_rounded,
+                AppColors.success,
+              ),
+            ),
             SizedBox(width: AppSpacing.sm),
-            Expanded(child: _statCard('Avg per Fill', _pkr(_avgPerTransaction), Icons.trending_up_rounded, AppColors.warning)),
+            Expanded(
+              child: _statCard(
+                'Avg per Fill',
+                _pkr(_avgPerTransaction),
+                Icons.trending_up_rounded,
+                AppColors.warning,
+              ),
+            ),
           ],
         ),
       ],
@@ -327,7 +370,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ],
           ),
           SizedBox(height: AppSpacing.sm),
-          Text(value, style: AppTextStyles.cardTitle.copyWith(color: color, fontSize: 18)),
+          Text(
+            value,
+            style: AppTextStyles.cardTitle.copyWith(color: color, fontSize: 18),
+          ),
           SizedBox(height: AppSpacing.xs),
           Text(label, style: AppTextStyles.caption),
         ],
@@ -341,7 +387,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final breakdown = _fuelBreakdown;
     if (breakdown.isEmpty) return const SizedBox.shrink();
 
-    final maxAmount = breakdown.values.fold(0.0, (m, s) => m > s.amount ? m : s.amount);
+    final maxAmount = breakdown.values.fold(
+      0.0,
+      (m, s) => m > s.amount ? m : s.amount,
+    );
 
     final colors = [
       AppColors.accentTeal,
@@ -379,14 +428,28 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                         ),
                         SizedBox(width: AppSpacing.sm),
-                        Text(_fuelLabel(fuelType), style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
+                        Text(
+                          _fuelLabel(fuelType),
+                          style: AppTextStyles.body.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(_pkr(stat.amount), style: AppTextStyles.body.copyWith(color: color, fontWeight: FontWeight.w700)),
-                        Text('${stat.litres.toStringAsFixed(1)} L · ${stat.count} fills', style: AppTextStyles.caption),
+                        Text(
+                          _pkr(stat.amount),
+                          style: AppTextStyles.body.copyWith(
+                            color: color,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '${stat.litres.toStringAsFixed(1)} L · ${stat.count} fills',
+                          style: AppTextStyles.caption,
+                        ),
                       ],
                     ),
                   ],
@@ -428,7 +491,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
               children: [
                 Expanded(
                   flex: 3,
-                  child: Text(_paymentLabel(entry.key), style: AppTextStyles.body),
+                  child: Text(
+                    _paymentLabel(entry.key),
+                    style: AppTextStyles.body,
+                  ),
                 ),
                 Expanded(
                   flex: 5,
@@ -437,7 +503,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     child: LinearProgressIndicator(
                       value: ratio,
                       backgroundColor: AppColors.lightGray,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.accentTeal),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.accentTeal,
+                      ),
                       minHeight: 8,
                     ),
                   ),
@@ -447,7 +515,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   width: 36,
                   child: Text(
                     '${entry.value}',
-                    style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700),
+                    style: AppTextStyles.caption.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                     textAlign: TextAlign.end,
                   ),
                 ),
@@ -528,7 +598,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: AppTextStyles.sectionHeading.copyWith(fontSize: 16)),
+          Text(
+            title,
+            style: AppTextStyles.sectionHeading.copyWith(fontSize: 16),
+          ),
           SizedBox(height: AppSpacing.md),
           child,
         ],
