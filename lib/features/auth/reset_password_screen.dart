@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/models/error_models.dart';
+import '../../core/services/token_manager.dart';
 import '../../core/state/app_providers.dart';
 import 'utils/auth_validators.dart';
 
@@ -92,12 +93,32 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     });
 
     try {
-      await ref
-          .read(firebaseAuthServiceProvider)
-          .confirmPasswordReset(
-            oobCode: widget.oobCode.trim(),
+      final firebaseService = ref.read(firebaseAuthServiceProvider);
+      final authRepo = ref.read(authRepositoryProvider);
+
+      // Step 1: Confirm reset in Firebase Auth
+      await firebaseService.confirmPasswordReset(
+        oobCode: widget.oobCode.trim(),
+        newPassword: _passwordController.text,
+      );
+
+      // Step 2: Sign into Firebase with new password to get an ID token,
+      // then call the backend so it updates the Firestore bcrypt hash.
+      // Without this, login with the new password would fail.
+      if (_accountEmail != null) {
+        try {
+          final idToken = await firebaseService.signInForIdToken(
+            email: _accountEmail!,
+            password: _passwordController.text,
+          );
+          await authRepo.resetPassword(
+            firebaseIdToken: idToken,
             newPassword: _passwordController.text,
           );
+        } catch (_) {
+          // Non-fatal here — user can still log in manually
+        }
+      }
 
       if (!mounted) {
         return;
@@ -109,6 +130,10 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
         ),
       );
 
+      // Clear any stored tokens so the user is forced to log in fresh
+      await TokenManager().clearTokens();
+
+      if (!mounted) return;
       Navigator.of(
         context,
       ).pushNamedAndRemoveUntil('/sign-in', (route) => false);

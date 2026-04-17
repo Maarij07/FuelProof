@@ -78,6 +78,14 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                 : _buildPakistaniPhoneNumber(_phoneController.text.trim()),
           );
 
+      // Send Firebase email verification (non-blocking — failure is silently ignored)
+      await ref
+          .read(firebaseAuthServiceProvider)
+          .sendVerificationEmailAfterSignup(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
+
       if (!mounted) {
         return;
       }

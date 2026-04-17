@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:firebase_auth/firebase_auth.dart' as fb;
+
 import '../models/auth_models.dart';
 import '../models/error_models.dart';
 import '../services/api_client.dart';
@@ -146,36 +148,13 @@ class AuthRepository {
     }
   }
 
-  /// Returns true only when backend explicitly marks the account/email verified.
+  /// Reloads the Firebase Auth user and returns whether their email is verified.
   Future<bool> isAccountVerified() async {
     try {
-      final response = await apiClient.get<Map<String, dynamic>>('/users/me');
-
-      const boolKeys = <String>[
-        'is_verified',
-        'email_verified',
-        'is_email_verified',
-        'verified',
-      ];
-
-      for (final key in boolKeys) {
-        final value = response[key];
-        if (value is bool) {
-          return value;
-        }
-      }
-
-      final verificationStatus = response['verification_status'];
-      if (verificationStatus is String) {
-        return verificationStatus.toLowerCase() == 'verified';
-      }
-
-      final status = response['status'];
-      if (status is String) {
-        return status.toLowerCase() == 'verified';
-      }
-
-      return false;
+      final user = fb.FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+      await user.reload();
+      return fb.FirebaseAuth.instance.currentUser?.emailVerified ?? false;
     } catch (e) {
       throw _handleError(e);
     }
