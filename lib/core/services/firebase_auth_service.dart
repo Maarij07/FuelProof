@@ -72,7 +72,7 @@ class FirebaseAuthService {
     return FirebaseAuth.instance.verifyPasswordResetCode(oobCode);
   }
 
-  /// Signs into Firebase and sends a verification email, then signs out.
+  /// Signs into Firebase and sends a verification email.
   /// Called right after backend signup so the user receives the email.
   Future<void> sendVerificationEmailAfterSignup({
     required String email,
@@ -85,7 +85,6 @@ class FirebaseAuthService {
         password: password,
       );
       await cred.user?.sendEmailVerification();
-      await FirebaseAuth.instance.signOut();
     } catch (_) {
       // Non-fatal — user can resend from the verification screen
     }
