@@ -32,7 +32,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
       try {
         final isVerified = await ref
             .read(authRepositoryProvider)
-            .isAccountVerified();
+            .isAccountVerified(expectedEmail: widget.email);
 
         if (!mounted) return;
         setState(() => _isSubmitting = false);

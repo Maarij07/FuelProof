@@ -149,12 +149,26 @@ class AuthRepository {
   }
 
   /// Reloads the Firebase Auth user and returns whether their email is verified.
-  Future<bool> isAccountVerified() async {
+  ///
+  /// When [expectedEmail] is provided, the currently signed-in Firebase user
+  /// must match that email (case-insensitive) to be considered verified.
+  Future<bool> isAccountVerified({String? expectedEmail}) async {
     try {
       final user = fb.FirebaseAuth.instance.currentUser;
       if (user == null) return false;
       await user.reload();
-      return fb.FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+      final refreshedUser = fb.FirebaseAuth.instance.currentUser;
+      if (refreshedUser == null || !(refreshedUser.emailVerified)) {
+        return false;
+      }
+
+      final expected = expectedEmail?.trim().toLowerCase();
+      if (expected == null || expected.isEmpty) {
+        return true;
+      }
+
+      final currentEmail = refreshedUser.email?.trim().toLowerCase();
+      return currentEmail == expected;
     } catch (e) {
       throw _handleError(e);
     }
