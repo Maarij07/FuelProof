@@ -7,7 +7,7 @@ class PriceRepository {
 
   PriceRepository({required this.apiClient});
 
-  /// Compare prices for a specific fuel type
+  /// Compare prices for a specific fuel type across nearby stations
   Future<List<PriceComparison>> comparePrices({
     required String fuelType,
     required double latitude,
@@ -33,7 +33,7 @@ class PriceRepository {
     }
   }
 
-  /// Get cheapest fuel station
+  /// Get cheapest fuel station within radius
   Future<CheapestFuel> getCheapestFuel({
     required String fuelType,
     required double latitude,
@@ -79,7 +79,7 @@ class PriceRepository {
     }
   }
 
-  /// Create price alert
+  /// Create a price alert for a station/fuel type
   Future<PriceAlert> createPriceAlert({
     required String stationId,
     required String fuelType,
@@ -101,7 +101,7 @@ class PriceRepository {
     }
   }
 
-  /// Get all price alerts
+  /// Get all price alerts for the current user
   Future<List<PriceAlert>> getPriceAlerts() async {
     try {
       final response = await apiClient.get<List<dynamic>>('/prices/alerts');
@@ -114,7 +114,7 @@ class PriceRepository {
     }
   }
 
-  /// Delete price alert
+  /// Delete a price alert
   Future<void> deletePriceAlert(String alertId) async {
     try {
       await apiClient.delete('/prices/alerts/$alertId');
@@ -123,7 +123,7 @@ class PriceRepository {
     }
   }
 
-  /// Update price alert active state
+  /// Toggle a price alert active/inactive
   Future<void> setPriceAlertActive({
     required String alertId,
     required bool isActive,

@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:path_provider/path_provider.dart'
+    show getDownloadsDirectory, getApplicationDocumentsDirectory;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
@@ -11,6 +13,7 @@ import '../../core/constants/spacing.dart';
 import '../../core/constants/text_styles.dart';
 import '../../core/models/error_models.dart';
 import '../../core/models/transaction_models.dart';
+import '../../core/repositories/evidence_repository.dart';
 import '../../core/repositories/transaction_repository.dart';
 import '../../core/state/app_providers.dart';
 
@@ -25,12 +28,14 @@ class TransactionDetailScreen extends ConsumerStatefulWidget {
 class _TransactionDetailScreenState
     extends ConsumerState<TransactionDetailScreen> {
   late final TransactionRepository _transactionRepository;
+  late final EvidenceRepository _evidenceRepository;
 
   bool _initialized = false;
   bool _isLoading = true;
   String? _errorMessage;
   String? _transactionId;
   Transaction? _transaction;
+  EvidenceItem? _evidence;
   bool _isFlagged = false;
   bool _isDownloadingReceipt = false;
 
@@ -38,6 +43,7 @@ class _TransactionDetailScreenState
   void initState() {
     super.initState();
     _transactionRepository = ref.read(transactionRepositoryProvider);
+    _evidenceRepository = ref.read(evidenceRepositoryProvider);
   }
 
   @override
@@ -71,9 +77,22 @@ class _TransactionDetailScreenState
       final transaction = await _transactionRepository.getTransaction(
         transactionId,
       );
+      EvidenceItem? evidence;
+      if (transaction.evidenceUrl != null) {
+        try {
+          final evidenceItems = await _evidenceRepository
+              .getEvidenceForTransaction(transactionId);
+          if (evidenceItems.isNotEmpty) {
+            evidence = evidenceItems.first;
+          }
+        } catch (_) {
+          evidence = null;
+        }
+      }
       if (!mounted) return;
       setState(() {
         _transaction = transaction;
+        _evidence = evidence;
         _isFlagged = transaction.isFlagged;
         _isLoading = false;
       });
@@ -105,6 +124,23 @@ class _TransactionDetailScreenState
     } catch (_) {
       return isoDate;
     }
+  }
+
+  String _formatEvidenceTimestamp(EvidenceItem evidence) {
+    final rawCaptureTime = evidence.captureTimePkt;
+    if (rawCaptureTime != null && rawCaptureTime.isNotEmpty) {
+      try {
+        final pkt = DateTime.parse(
+          rawCaptureTime,
+        ).toUtc().add(const Duration(hours: 5));
+        return '${DateFormat('MMM d, yyyy · h:mm:ss a').format(pkt)} PKT';
+      } catch (_) {
+        return rawCaptureTime;
+      }
+    }
+
+    final pkt = evidence.createdAt.toUtc().add(const Duration(hours: 5));
+    return '${DateFormat('MMM d, yyyy · h:mm:ss a').format(pkt)} PKT';
   }
 
   String _label(String value) {
@@ -140,20 +176,35 @@ class _TransactionDetailScreenState
       final bytes = await _transactionRepository.downloadReceipt(
         transaction.id,
       );
-      final dir = await getApplicationDocumentsDirectory();
       final suffix = transaction.id.length > 8
           ? transaction.id.substring(transaction.id.length - 8)
           : transaction.id;
-      final file = File('${dir.path}/receipt_$suffix.pdf');
+      final filename = 'receipt_$suffix.pdf';
+
+      Directory? dir = await getDownloadsDirectory();
+      dir ??= await getApplicationDocumentsDirectory();
+
+      final file = File('${dir.path}/$filename');
       await file.writeAsBytes(bytes);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Receipt saved: receipt_$suffix.pdf'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+
+      final uri = Uri.file(file.path);
+      final opened =
+          await canLaunchUrl(uri) &&
+          await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication,
+          ).then((_) => true).catchError((_) => false);
+
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Receipt saved to Downloads: $filename'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -321,6 +372,7 @@ class _TransactionDetailScreenState
   @override
   Widget build(BuildContext context) {
     final transaction = _transaction;
+    final evidence = _evidence;
 
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
@@ -506,6 +558,42 @@ class _TransactionDetailScreenState
                               ),
                             ),
                           ),
+                          if (evidence != null) ...[
+                            SizedBox(height: AppSpacing.sm),
+                            Container(
+                              width: double.infinity,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                                vertical: AppSpacing.sm,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.secondaryBackground,
+                                borderRadius: BorderRadius.circular(
+                                  AppBorderRadius.card,
+                                ),
+                                border: Border.all(color: AppColors.softGray),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.schedule_rounded,
+                                    size: 16,
+                                    color: AppColors.accentTeal,
+                                  ),
+                                  SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: Text(
+                                      'Captured on ${_formatEvidenceTimestamp(evidence)}',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: AppColors.secondaryText,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ],
                     ),

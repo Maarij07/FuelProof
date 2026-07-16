@@ -13,7 +13,7 @@ class AuthRepository {
 
   AuthRepository({required this.apiClient, required this.tokenManager});
 
-  /// Sign up with email, password, and name
+  /// Sign up — Firebase Auth handles credentials, backend stores the profile.
   Future<AuthResponse> signup({
     required String email,
     required String password,
@@ -21,11 +21,17 @@ class AuthRepository {
     String? phone,
   }) async {
     try {
+      // 1. Create Firebase Auth account (Firebase manages the password).
+      final credential = await fb.FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+
+      final idToken = await credential.user!.getIdToken();
+
+      // 2. Register the profile in the backend using the Firebase ID token.
       final response = await apiClient.post<Map<String, dynamic>>(
         '/auth/signup',
         data: {
-          'email': email,
-          'password': password,
+          'firebase_id_token': idToken,
           'full_name': fullName,
           'phone': phone,
           'role': 'customer',
@@ -33,8 +39,6 @@ class AuthRepository {
       );
 
       final authResponse = AuthResponse.fromJson(response);
-
-      // Save tokens
       await tokenManager.saveTokens(
         accessToken: authResponse.accessToken,
         refreshToken: authResponse.refreshToken,
@@ -43,25 +47,32 @@ class AuthRepository {
       );
 
       return authResponse;
+    } on fb.FirebaseAuthException catch (e) {
+      throw _handleFirebaseError(e);
     } catch (e) {
       throw _handleError(e);
     }
   }
 
-  /// Log in with email and password
+  /// Log in — Firebase Auth verifies credentials, backend issues its JWT.
   Future<AuthResponse> login({
     required String email,
     required String password,
   }) async {
     try {
+      // 1. Sign into Firebase Auth.
+      final credential = await fb.FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
+
+      final idToken = await credential.user!.getIdToken();
+
+      // 2. Exchange the Firebase ID token for a backend JWT pair.
       final response = await apiClient.post<Map<String, dynamic>>(
         '/auth/login',
-        data: {'email': email, 'password': password},
+        data: {'firebase_id_token': idToken},
       );
 
       final authResponse = AuthResponse.fromJson(response);
-
-      // Save tokens
       await tokenManager.saveTokens(
         accessToken: authResponse.accessToken,
         refreshToken: authResponse.refreshToken,
@@ -70,6 +81,8 @@ class AuthRepository {
       );
 
       return authResponse;
+    } on fb.FirebaseAuthException catch (e) {
+      throw _handleFirebaseError(e);
     } catch (e) {
       throw _handleError(e);
     }
@@ -87,10 +100,12 @@ class AuthRepository {
     }
   }
 
-  /// Send forgot password OTP to email
+  /// Send password reset email directly via Firebase — no backend call needed.
   Future<void> forgotPassword({required String email}) async {
     try {
-      await apiClient.post('/auth/forgot-password', data: {'email': email});
+      await fb.FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+    } on fb.FirebaseAuthException catch (e) {
+      throw _handleFirebaseError(e);
     } catch (e) {
       throw _handleError(e);
     }
@@ -232,5 +247,52 @@ class AuthRepository {
   AppError _handleError(dynamic error) {
     if (error is AppError) return error;
     return AppError(message: 'An unexpected error occurred');
+  }
+
+  AppError _handleFirebaseError(fb.FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return AppError(
+          message: 'Email already registered',
+          detail: 'This email is already in use. Please sign in instead.',
+        );
+      case 'weak-password':
+        return AppError(
+          message: 'Weak password',
+          detail: 'Password must be at least 6 characters.',
+        );
+      case 'invalid-email':
+        return AppError(
+          message: 'Invalid email',
+          detail: 'Please enter a valid email address.',
+        );
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return AppError(
+          message: 'Invalid credentials',
+          detail: 'Invalid email or password.',
+        );
+      case 'user-disabled':
+        return AppError(
+          message: 'Account disabled',
+          detail: 'Account is deactivated. Contact support.',
+        );
+      case 'too-many-requests':
+        return AppError(
+          message: 'Too many attempts',
+          detail: 'Too many failed attempts. Please try again later.',
+        );
+      case 'network-request-failed':
+        return AppError(
+          message: 'No internet',
+          detail: 'Check your internet connection and try again.',
+        );
+      default:
+        return AppError(
+          message: e.message ?? 'Authentication failed',
+          detail: e.message,
+        );
+    }
   }
 }

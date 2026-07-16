@@ -7,7 +7,7 @@ class StationRepository {
 
   StationRepository({required this.apiClient});
 
-  /// Get all stations with filters
+  /// Get all stations with optional filters
   Future<List<Station>> getStations({
     String? city,
     String? fuelType,
@@ -44,7 +44,7 @@ class StationRepository {
     }
   }
 
-  /// Get nearby stations
+  /// Get stations within a radius of a location
   Future<List<Station>> getNearbyStations({
     required double latitude,
     required double longitude,
@@ -102,7 +102,7 @@ class StationRepository {
     }
   }
 
-  /// Get favorite stations
+  /// Get the current user's favorite stations
   Future<List<Station>> getFavoriteStations() async {
     try {
       final response = await apiClient.get<List<dynamic>>(
@@ -117,7 +117,7 @@ class StationRepository {
     }
   }
 
-  /// Add station to favorites
+  /// Add a station to favorites
   Future<void> addFavorite(String stationId) async {
     try {
       await apiClient.post('/stations/me/favorites/$stationId');
@@ -126,7 +126,7 @@ class StationRepository {
     }
   }
 
-  /// Remove station from favorites
+  /// Remove a station from favorites
   Future<void> removeFavorite(String stationId) async {
     try {
       await apiClient.delete('/stations/me/favorites/$stationId');

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/auth_repository.dart';
+import '../repositories/evidence_repository.dart';
 import '../repositories/chat_repository.dart';
 import '../repositories/fleet_repository.dart';
 import '../repositories/price_repository.dart';
@@ -53,6 +54,10 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
 
 final firebaseAuthServiceProvider = Provider<FirebaseAuthService>((ref) {
   return FirebaseAuthService();
+});
+
+final evidenceRepositoryProvider = Provider<EvidenceRepository>((ref) {
+  return EvidenceRepository(apiClient: ref.watch(apiClientProvider));
 });
 
 final authStatusProvider = FutureProvider<bool>((ref) async {

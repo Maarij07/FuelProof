@@ -1,12 +1,20 @@
+import 'dart:io';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart'
+    show
+        getDownloadsDirectory,
+        getApplicationDocumentsDirectory;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/text_styles.dart';
-import '../../core/models/error_models.dart';
+import '../../core/models/report_models.dart';
 import '../../core/models/transaction_models.dart';
 import '../../core/repositories/transaction_repository.dart';
 import '../../core/state/app_providers.dart';
@@ -20,151 +28,187 @@ class ReportsScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
-  late final TransactionRepository _transactionRepository;
+  late final TransactionRepository _repo;
 
   bool _isLoading = true;
+  bool _isRefreshing = false;
+  bool _isStatsLoading = false;
+  bool _isDownloading = false;
+  bool _fromCache = false;
   String? _errorMessage;
-  List<Transaction> _allTransactions = [];
-  String _selectedPeriod = 'month'; // 'all', 'month', 'last_month', '3months'
+  List<Transaction> _all = [];
+  MyReportSummary? _summary;
+  MyComparative? _comparative;
+  String _period = 'monthly';
 
   @override
   void initState() {
     super.initState();
-    _transactionRepository = ref.read(transactionRepositoryProvider);
-    _loadTransactions();
+    _repo = ref.read(transactionRepositoryProvider);
+    _loadWithCache();
   }
 
-  Future<void> _loadTransactions() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  Future<void> _loadWithCache() async {
+    final cached = _repo.getCachedTransactions();
+    if (cached != null && cached.items.isNotEmpty) {
+      setState(() {
+        _all = cached.items;
+        _fromCache = true;
+        _isLoading = false;
+      });
+    }
+    await Future.wait([
+      _load(silent: cached != null),
+      _loadStats(),
+    ]);
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isLoading = _all.isEmpty;
+        _isRefreshing = _all.isNotEmpty;
+        _errorMessage = null;
+      });
+    } else {
+      if (mounted) setState(() => _isRefreshing = true);
+    }
     try {
-      final response = await _transactionRepository.getMyTransactions(
-        limit: 500,
-        offset: 0,
-      );
+      final res = await _repo.getMyTransactions(limit: 100, offset: 0);
       if (!mounted) return;
       setState(() {
-        _allTransactions = response.items;
+        _all = res.items;
         _isLoading = false;
+        _isRefreshing = false;
+        _fromCache = false;
+        _errorMessage = null;
       });
     } catch (e) {
       if (!mounted) return;
-      final message =
-          e is AppError && e.detail != null && e.detail!.trim().isNotEmpty
-          ? e.detail!
-          : 'Unable to load report data.';
       setState(() {
-        _errorMessage = message;
         _isLoading = false;
+        _isRefreshing = false;
+        if (_all.isEmpty) {
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        }
       });
     }
   }
 
-  // ─── Period filter ────────────────────────────────────────────────────────
+  Future<void> _loadStats() async {
+    if (mounted) setState(() => _isStatsLoading = true);
+    try {
+      if (_period == 'all') {
+        final summary = await _repo.getMyReportSummary(period: _period);
+        if (!mounted) return;
+        setState(() {
+          _summary = summary;
+          _comparative = null;
+          _isStatsLoading = false;
+        });
+      } else {
+        final results = await Future.wait([
+          _repo.getMyReportSummary(period: _period),
+          _repo.getMyComparative(period: _period),
+        ]);
+        if (!mounted) return;
+        setState(() {
+          _summary = results[0] as MyReportSummary;
+          _comparative = results[1] as MyComparative;
+          _isStatsLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isStatsLoading = false);
+    }
+  }
 
   List<Transaction> get _filtered {
     final now = DateTime.now();
-    return _allTransactions.where((t) {
+    return _all.where((t) {
       final date = DateTime.tryParse(t.createdAt)?.toLocal();
-      if (date == null) return false;
-      switch (_selectedPeriod) {
-        case 'month':
+      if (date == null) return true;
+      switch (_period) {
+        case 'daily':
+          return date.year == now.year &&
+              date.month == now.month &&
+              date.day == now.day;
+        case 'weekly':
+          return date.isAfter(now.subtract(const Duration(days: 7)));
+        case 'monthly':
           return date.year == now.year && date.month == now.month;
-        case 'last_month':
-          final last = DateTime(now.year, now.month - 1);
-          return date.year == last.year && date.month == last.month;
-        case '3months':
-          return date.isAfter(now.subtract(const Duration(days: 90)));
         default:
           return true;
       }
-    }).toList();
+    }).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
-
-  // ─── Computed stats ───────────────────────────────────────────────────────
 
   double get _totalSpent =>
-      _filtered.fold(0.0, (sum, t) => sum + t.totalAmount);
-
+      _summary?.totalSpent ??
+      _filtered.fold(0.0, (s, t) => s + t.totalAmount);
   double get _totalLitres =>
-      _filtered.fold(0.0, (sum, t) => sum + t.litresDispensed);
+      _summary?.totalLitres ??
+      _filtered.fold(0.0, (s, t) => s + t.litresDispensed);
+  int get _fillCount => _summary?.transactionCount ?? _filtered.length;
 
-  int get _completedCount =>
-      _filtered.where((t) => t.status == TransactionStatus.completed).length;
+  String _pkr(double v) =>
+      'PKR ${NumberFormat('#,##0', 'en_US').format(v)}';
 
-  double get _avgPerTransaction =>
-      _filtered.isEmpty ? 0 : _totalSpent / _filtered.length;
+  String _formatDate(String raw) {
+    final d = DateTime.tryParse(raw)?.toLocal();
+    if (d == null) return raw;
+    return DateFormat('dd MMM yyyy, hh:mm a').format(d);
+  }
 
-  // ─── Fuel type breakdown ──────────────────────────────────────────────────
+  Future<void> _export(String format) async {
+    setState(() => _isDownloading = true);
+    try {
+      final bytes =
+          await _repo.exportMyReport(format: format, period: _period);
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final filename = 'FuelGuard_${_period}_$ts.$format';
 
-  Map<FuelType, _FuelStat> get _fuelBreakdown {
-    final map = <FuelType, _FuelStat>{};
-    for (final t in _filtered) {
-      final existing = map[t.fuelType];
-      if (existing == null) {
-        map[t.fuelType] = _FuelStat(
-          litres: t.litresDispensed,
-          amount: t.totalAmount,
-          count: 1,
-        );
-      } else {
-        map[t.fuelType] = _FuelStat(
-          litres: existing.litres + t.litresDispensed,
-          amount: existing.amount + t.totalAmount,
-          count: existing.count + 1,
+      // Prefer the public Downloads directory; fall back to documents dir.
+      Directory? dir = await getDownloadsDirectory();
+      dir ??= await getApplicationDocumentsDirectory();
+
+      final file = File('${dir.path}/$filename');
+      await file.writeAsBytes(bytes);
+
+      if (!mounted) return;
+
+      final uri = Uri.file(file.path);
+      final opened = await canLaunchUrl(uri) &&
+          await launchUrl(uri, mode: LaunchMode.externalApplication)
+              .then((_) => true)
+              .catchError((_) => false);
+
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved to Downloads: $filename'),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 4),
+          ),
         );
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Export failed: ${e.toString().replaceFirst('Exception: ', '')}'),
+            backgroundColor: AppColors.alert,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
     }
-    return map;
   }
 
-  // ─── Payment method breakdown ─────────────────────────────────────────────
-
-  Map<PaymentMethod, int> get _paymentBreakdown {
-    final map = <PaymentMethod, int>{};
-    for (final t in _filtered) {
-      map[t.paymentMethod] = (map[t.paymentMethod] ?? 0) + 1;
-    }
-    return map;
-  }
-
-  // ─── Monthly spending (last 6 months) ────────────────────────────────────
-
-  List<_MonthStat> get _monthlyTrend {
-    final now = DateTime.now();
-    final months = List.generate(6, (i) {
-      final m = DateTime(now.year, now.month - (5 - i));
-      return m;
-    });
-
-    return months.map((month) {
-      final spent = _allTransactions
-          .where((t) {
-            final d = DateTime.tryParse(t.createdAt)?.toLocal();
-            return d != null && d.year == month.year && d.month == month.month;
-          })
-          .fold(0.0, (sum, t) => sum + t.totalAmount);
-      return _MonthStat(label: DateFormat('MMM').format(month), amount: spent);
-    }).toList();
-  }
-
-  // ─── Formatters ───────────────────────────────────────────────────────────
-
-  String _pkr(double amount) => NumberFormat.currency(
-    locale: 'en_PK',
-    symbol: 'PKR ',
-    decimalDigits: 0,
-  ).format(amount);
-
-  String _fuelLabel(FuelType t) =>
-      t.name[0].toUpperCase() + t.name.substring(1);
-
-  String _paymentLabel(PaymentMethod m) =>
-      m.name[0].toUpperCase() + m.name.substring(1).replaceAll('_', ' ');
-
-  // ─── Build ────────────────────────────────────────────────────────────────
+  // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -176,105 +220,182 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         elevation: 0,
         automaticallyImplyLeading: false,
         leading: IconButton(
+          icon:
+              Icon(Icons.arrow_back_rounded, color: AppColors.primaryText),
           onPressed: () => Navigator.maybePop(context),
-          icon: Icon(Icons.arrow_back_rounded, color: AppColors.primaryText),
         ),
-        title: Text('Reports', style: AppTextStyles.sectionHeading),
+        title: Text('My Reports', style: AppTextStyles.sectionHeading),
         centerTitle: true,
         actions: [
+          if (_isDownloading)
+            Padding(
+              padding: EdgeInsets.all(AppSpacing.md),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.accentTeal),
+              ),
+            ),
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: AppColors.primaryText),
-            onPressed: _isLoading ? null : _loadTransactions,
+            onPressed: (_isLoading || _isRefreshing)
+                ? null
+                : () {
+                    _load();
+                    _loadStats();
+                  },
           ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-          ? _buildError()
-          : RefreshIndicator(
-              onRefresh: _loadTransactions,
-              child: ListView(
-                padding: EdgeInsets.all(AppSpacing.md),
-                children: [
-                  _buildPeriodSelector(),
-                  SizedBox(height: AppSpacing.lg),
-                  _buildSummaryCards(),
-                  SizedBox(height: AppSpacing.lg),
-                  _buildFuelBreakdown(),
-                  SizedBox(height: AppSpacing.lg),
-                  _buildPaymentBreakdown(),
-                  SizedBox(height: AppSpacing.lg),
-                  _buildMonthlyTrend(),
-                  SizedBox(height: AppSpacing.xxl),
-                ],
-              ),
-            ),
+          : _errorMessage != null && _all.isEmpty
+              ? _buildError()
+              : RefreshIndicator(
+                  onRefresh: () async {
+                    await Future.wait([_load(), _loadStats()]);
+                  },
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(AppSpacing.md,
+                              AppSpacing.md, AppSpacing.md, 0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildStatusBanner(),
+                              _buildPeriodSelector(),
+                              SizedBox(height: AppSpacing.md),
+                              _buildSummaryRow(),
+                              SizedBox(height: AppSpacing.md),
+                              if (_summary != null &&
+                                  _summary!.dailySpending.isNotEmpty) ...[
+                                _buildSpendingChart(),
+                                SizedBox(height: AppSpacing.md),
+                              ],
+                              if (_summary != null &&
+                                  _summary!.fuelBreakdown.isNotEmpty) ...[
+                                _buildFuelBreakdown(),
+                                SizedBox(height: AppSpacing.md),
+                              ],
+                              if (_comparative != null) ...[
+                                _buildComparativeCard(),
+                                SizedBox(height: AppSpacing.md),
+                              ],
+                              _buildExportButtons(),
+                              SizedBox(height: AppSpacing.md),
+                              Text('Transaction History',
+                                  style: AppTextStyles.cardTitle.copyWith(
+                                      color: AppColors.primaryText)),
+                              SizedBox(height: AppSpacing.sm),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (_filtered.isEmpty)
+                        SliverFillRemaining(child: _buildEmpty())
+                      else
+                        SliverPadding(
+                          padding: EdgeInsets.fromLTRB(AppSpacing.md, 0,
+                              AppSpacing.md, AppSpacing.xxl),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (ctx, i) =>
+                                  _buildTransactionCard(_filtered[i]),
+                              childCount: _filtered.length,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
     );
   }
 
-  Widget _buildError() {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline_rounded, color: AppColors.alert, size: 48),
-            SizedBox(height: AppSpacing.md),
-            Text(
-              _errorMessage!,
-              style: AppTextStyles.body,
-              textAlign: TextAlign.center,
+  // ── Status banner ───────────────────────────────────────────────────────────
+
+  Widget _buildStatusBanner() {
+    if (!_isRefreshing && !_fromCache && !_isStatsLoading) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (_isRefreshing || _isStatsLoading) ...[
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                  strokeWidth: 1.5, color: AppColors.accentTeal),
             ),
-            SizedBox(height: AppSpacing.md),
-            ElevatedButton(
-              onPressed: _loadTransactions,
-              child: const Text('Retry'),
+            SizedBox(width: AppSpacing.xs),
+            Text(
+              _isRefreshing ? 'Refreshing…' : 'Loading stats…',
+              style: AppTextStyles.caption
+                  .copyWith(color: AppColors.accentTeal),
+            ),
+          ] else if (_fromCache) ...[
+            Icon(Icons.offline_bolt_outlined,
+                size: 12, color: AppColors.secondaryText),
+            SizedBox(width: 4),
+            Text(
+              'Showing cached data',
+              style: AppTextStyles.caption
+                  .copyWith(color: AppColors.secondaryText),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  // ─── Period selector ──────────────────────────────────────────────────────
+  // ── Period selector ─────────────────────────────────────────────────────────
 
   Widget _buildPeriodSelector() {
-    final periods = [
-      ('month', 'This Month'),
-      ('last_month', 'Last Month'),
-      ('3months', 'Last 3 Months'),
+    const periods = [
+      ('daily', 'Today'),
+      ('weekly', 'This Week'),
+      ('monthly', 'This Month'),
       ('all', 'All Time'),
     ];
-
     return SizedBox(
-      height: 38,
+      height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: periods.length,
-        separatorBuilder: (_, i) => SizedBox(width: AppSpacing.sm),
-        itemBuilder: (context, index) {
-          final (value, label) = periods[index];
-          final selected = _selectedPeriod == value;
+        separatorBuilder: (_, _) => SizedBox(width: AppSpacing.sm),
+        itemBuilder: (_, i) {
+          final (val, label) = periods[i];
+          final sel = _period == val;
           return GestureDetector(
-            onTap: () => setState(() => _selectedPeriod = value),
+            onTap: () {
+              if (_period == val) return;
+              setState(() {
+                _period = val;
+                _summary = null;
+                _comparative = null;
+              });
+              _loadStats();
+            },
             child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xs,
-              ),
+              height: 36,
+              alignment: Alignment.center,
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
               decoration: BoxDecoration(
-                color: selected ? AppColors.accentTeal : AppColors.white,
+                color: sel ? AppColors.accentTeal : AppColors.white,
                 borderRadius: BorderRadius.circular(AppBorderRadius.pill),
                 border: Border.all(
-                  color: selected ? AppColors.accentTeal : AppColors.softGray,
+                  color: sel ? AppColors.accentTeal : AppColors.softGray,
                 ),
               ),
               child: Text(
                 label,
                 style: AppTextStyles.caption.copyWith(
-                  color: selected ? AppColors.white : AppColors.primaryText,
+                  color: sel ? AppColors.white : AppColors.primaryText,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -285,65 +406,70 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     );
   }
 
-  // ─── Summary cards ────────────────────────────────────────────────────────
+  // ── Summary tiles ───────────────────────────────────────────────────────────
 
-  Widget _buildSummaryCards() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSummaryRow() {
+    return Row(
       children: [
-        Text(
-          'Summary',
-          style: AppTextStyles.sectionHeading.copyWith(fontSize: 20),
+        Expanded(
+          child: _statTile('Spent', _pkr(_totalSpent),
+              Icons.payments_rounded, AppColors.brandNavy),
         ),
-        SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: _statCard(
-                'Total Spent',
-                _pkr(_totalSpent),
-                Icons.payments_rounded,
-                AppColors.brandNavy,
-              ),
-            ),
-            SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _statCard(
-                'Total Litres',
-                '${_totalLitres.toStringAsFixed(1)} L',
-                Icons.local_gas_station_rounded,
-                AppColors.accentTeal,
-              ),
-            ),
-          ],
+        SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _statTile(
+              'Litres',
+              '${_totalLitres.toStringAsFixed(1)} L',
+              Icons.local_gas_station_rounded,
+              AppColors.accentTeal),
         ),
-        SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(
-              child: _statCard(
-                'Completed',
-                '$_completedCount / ${_filtered.length}',
-                Icons.receipt_long_rounded,
-                AppColors.success,
-              ),
-            ),
-            SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _statCard(
-                'Avg per Fill',
-                _pkr(_avgPerTransaction),
-                Icons.trending_up_rounded,
-                AppColors.warning,
-              ),
-            ),
-          ],
+        SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _statTile('Fills', '$_fillCount',
+              Icons.receipt_long_rounded, AppColors.success),
         ),
       ],
     );
   }
 
-  Widget _statCard(String label, String value, IconData icon, Color color) {
+  Widget _statTile(
+      String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppBorderRadius.card),
+        boxShadow: AppShadows.subtleList,
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          SizedBox(height: AppSpacing.xs),
+          Text(
+            value,
+            style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w700, color: color, fontSize: 13),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            label,
+            style: AppTextStyles.caption
+                .copyWith(color: AppColors.secondaryText),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Spending trend chart ────────────────────────────────────────────────────
+
+  Widget _buildSpendingChart() {
+    final raw = _summary!.dailySpending;
+    final display =
+        raw.length > 14 ? raw.sublist(raw.length - 14) : raw;
+
     return Container(
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -355,237 +481,35 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: EdgeInsets.all(AppSpacing.xs),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppBorderRadius.small),
+              Text('Spending Trend', style: AppTextStyles.cardTitle),
+              if (_isStatsLoading)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: AppColors.accentTeal),
                 ),
-                child: Icon(icon, color: color, size: 16),
-              ),
             ],
           ),
           SizedBox(height: AppSpacing.sm),
-          Text(
-            value,
-            style: AppTextStyles.cardTitle.copyWith(color: color, fontSize: 18),
-          ),
-          SizedBox(height: AppSpacing.xs),
-          Text(label, style: AppTextStyles.caption),
+          _SpendingBarChart(data: display),
         ],
       ),
     );
   }
 
-  // ─── Fuel type breakdown ──────────────────────────────────────────────────
+  // ── Fuel breakdown ──────────────────────────────────────────────────────────
 
   Widget _buildFuelBreakdown() {
-    final breakdown = _fuelBreakdown;
-    if (breakdown.isEmpty) return const SizedBox.shrink();
+    final entries = [..._summary!.fuelBreakdown]
+      ..sort((a, b) => b.amount.compareTo(a.amount));
+    final maxAmount =
+        entries.fold(0.0, (m, e) => max(m, e.amount));
 
-    final maxAmount = breakdown.values.fold(
-      0.0,
-      (m, s) => m > s.amount ? m : s.amount,
-    );
-
-    final colors = [
-      AppColors.accentTeal,
-      AppColors.brandNavy,
-      AppColors.success,
-      AppColors.warning,
-      AppColors.alert,
-    ];
-
-    return _sectionCard(
-      title: 'Fuel Type Breakdown',
-      child: Column(
-        children: breakdown.entries.toList().asMap().entries.map((entry) {
-          final i = entry.key;
-          final fuelType = entry.value.key;
-          final stat = entry.value.value;
-          final ratio = maxAmount > 0 ? stat.amount / maxAmount : 0.0;
-          final color = colors[i % colors.length];
-
-          return Padding(
-            padding: EdgeInsets.only(bottom: AppSpacing.md),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: color,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        SizedBox(width: AppSpacing.sm),
-                        Text(
-                          _fuelLabel(fuelType),
-                          style: AppTextStyles.body.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          _pkr(stat.amount),
-                          style: AppTextStyles.body.copyWith(
-                            color: color,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(
-                          '${stat.litres.toStringAsFixed(1)} L · ${stat.count} fills',
-                          style: AppTextStyles.caption,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                SizedBox(height: AppSpacing.xs),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: ratio,
-                    backgroundColor: AppColors.lightGray,
-                    valueColor: AlwaysStoppedAnimation<Color>(color),
-                    minHeight: 8,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  // ─── Payment method breakdown ─────────────────────────────────────────────
-
-  Widget _buildPaymentBreakdown() {
-    final breakdown = _paymentBreakdown;
-    if (breakdown.isEmpty) return const SizedBox.shrink();
-
-    final total = breakdown.values.fold(0, (s, c) => s + c);
-
-    return _sectionCard(
-      title: 'Payment Methods',
-      child: Column(
-        children: breakdown.entries.map((entry) {
-          final ratio = total > 0 ? entry.value / total : 0.0;
-          return Padding(
-            padding: EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    _paymentLabel(entry.key),
-                    style: AppTextStyles.body,
-                  ),
-                ),
-                Expanded(
-                  flex: 5,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: ratio,
-                      backgroundColor: AppColors.lightGray,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.accentTeal,
-                      ),
-                      minHeight: 8,
-                    ),
-                  ),
-                ),
-                SizedBox(width: AppSpacing.sm),
-                SizedBox(
-                  width: 36,
-                  child: Text(
-                    '${entry.value}',
-                    style: AppTextStyles.caption.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                    textAlign: TextAlign.end,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  // ─── Monthly trend ────────────────────────────────────────────────────────
-
-  Widget _buildMonthlyTrend() {
-    final trend = _monthlyTrend;
-    final maxAmount = trend.fold(0.0, (m, s) => m > s.amount ? m : s.amount);
-
-    return _sectionCard(
-      title: 'Monthly Spending (Last 6 Months)',
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: trend.map((stat) {
-          final ratio = maxAmount > 0 ? stat.amount / maxAmount : 0.0;
-          const barMaxHeight = 100.0;
-          final barHeight = ratio * barMaxHeight;
-          final isZero = stat.amount == 0;
-
-          return Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                children: [
-                  if (!isZero)
-                    Text(
-                      _pkr(stat.amount).replaceAll('PKR ', ''),
-                      style: AppTextStyles.caption.copyWith(fontSize: 9),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  if (isZero) SizedBox(height: 14),
-                  SizedBox(height: AppSpacing.xs),
-                  Container(
-                    height: isZero ? 4 : barHeight,
-                    decoration: BoxDecoration(
-                      color: isZero
-                          ? AppColors.lightGray
-                          : AppColors.accentTeal.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  SizedBox(height: AppSpacing.xs),
-                  Text(
-                    stat.label,
-                    style: AppTextStyles.caption,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  // ─── Shared card wrapper ──────────────────────────────────────────────────
-
-  Widget _sectionCard({required String title, required Widget child}) {
     return Container(
-      width: double.infinity,
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -595,35 +519,501 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: AppTextStyles.sectionHeading.copyWith(fontSize: 16),
-          ),
+          Text('Fuel Breakdown', style: AppTextStyles.cardTitle),
           SizedBox(height: AppSpacing.md),
-          child,
+          ...entries.map((e) => _buildFuelBar(e, maxAmount)),
         ],
       ),
     );
   }
+
+  static const _fuelColors = {
+    'petrol': AppColors.accentTeal,
+    'diesel': AppColors.brandNavy,
+    'premium': AppColors.warning,
+    'cng': AppColors.success,
+    'lpg': Color(0xFF8B5CF6),
+  };
+
+  Widget _buildFuelBar(FuelBreakdownEntry e, double maxAmount) {
+    final frac =
+        maxAmount > 0 ? (e.amount / maxAmount).clamp(0.0, 1.0) : 0.0;
+    final color = _fuelColors[e.fuelType] ?? AppColors.accentTeal;
+    final label =
+        e.fuelType[0].toUpperCase() + e.fuelType.substring(1);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                label,
+                style: AppTextStyles.caption.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryText),
+              ),
+              Text(
+                '${_pkr(e.amount)}  •  ${e.litres.toStringAsFixed(1)} L  •  ${e.count} fills',
+                style: AppTextStyles.caption
+                    .copyWith(color: AppColors.secondaryText),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.xs),
+          LayoutBuilder(
+            builder: (ctx, constraints) => Stack(
+              children: [
+                Container(
+                  height: 6,
+                  width: constraints.maxWidth,
+                  decoration: BoxDecoration(
+                    color: AppColors.lightGray,
+                    borderRadius:
+                        BorderRadius.circular(AppBorderRadius.pill),
+                  ),
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.easeOut,
+                  height: 6,
+                  width: constraints.maxWidth * frac,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius:
+                        BorderRadius.circular(AppBorderRadius.pill),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Comparative analysis ────────────────────────────────────────────────────
+
+  Widget _buildComparativeCard() {
+    final c = _comparative!;
+    const periodLabels = {
+      'daily': 'vs Yesterday',
+      'weekly': 'vs Last Week',
+      'monthly': 'vs Last Month',
+    };
+
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppBorderRadius.card),
+        boxShadow: AppShadows.subtleList,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Comparative Analysis',
+                  style: AppTextStyles.cardTitle),
+              Text(
+                periodLabels[_period] ?? '',
+                style: AppTextStyles.caption
+                    .copyWith(color: AppColors.secondaryText),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                  child: _compareTile('Spending',
+                      _pkr(c.current.totalSpent), c.changePctSpent)),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                  child: _compareTile(
+                      'Litres',
+                      '${c.current.totalLitres.toStringAsFixed(1)} L',
+                      c.changePctLitres)),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                  child: _compareTile(
+                      'Fills', '${c.current.count}', c.changePctCount)),
+            ],
+          ),
+          SizedBox(height: AppSpacing.sm),
+          Text(
+            'Previous: ${_pkr(c.previous.totalSpent)}  •  ${c.previous.totalLitres.toStringAsFixed(1)} L  •  ${c.previous.count} fills',
+            style: AppTextStyles.caption
+                .copyWith(color: AppColors.tertiaryText),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _compareTile(String label, String value, double pct) {
+    final isUp = pct > 0;
+    final isFlat = pct == 0.0;
+    final changeColor = isFlat
+        ? AppColors.secondaryText
+        : (isUp ? AppColors.alert : AppColors.success);
+    final arrow = isFlat ? '→' : (isUp ? '↑' : '↓');
+
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.lightGray,
+        borderRadius: BorderRadius.circular(AppBorderRadius.small),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryText,
+                fontSize: 12),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          SizedBox(height: 2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(arrow,
+                  style: TextStyle(
+                      color: changeColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
+              SizedBox(width: 2),
+              Text(
+                '${pct.abs().toStringAsFixed(1)}%',
+                style: AppTextStyles.caption.copyWith(
+                    color: changeColor, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+                color: AppColors.tertiaryText, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Export buttons ──────────────────────────────────────────────────────────
+
+  Widget _buildExportButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _isDownloading ? null : () => _export('pdf'),
+            icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+            label: const Text('Export PDF'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.alert,
+              side: BorderSide(
+                  color: AppColors.alert.withValues(alpha: 0.5)),
+              padding: EdgeInsets.symmetric(
+                  vertical: AppSpacing.sm + 2),
+              shape: RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(AppBorderRadius.button),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _isDownloading ? null : () => _export('csv'),
+            icon: const Icon(Icons.table_chart_rounded, size: 16),
+            label: const Text('Export CSV'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accentTeal,
+              side: BorderSide(
+                  color: AppColors.accentTeal.withValues(alpha: 0.5)),
+              padding: EdgeInsets.symmetric(
+                  vertical: AppSpacing.sm + 2),
+              shape: RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(AppBorderRadius.button),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Error / empty states ────────────────────────────────────────────────────
+
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.wifi_off_rounded,
+                color: AppColors.alert, size: 48),
+            SizedBox(height: AppSpacing.md),
+            Text('Could not load transactions',
+                style: AppTextStyles.cardTitle,
+                textAlign: TextAlign.center),
+            SizedBox(height: AppSpacing.sm),
+            Text(
+              _errorMessage!,
+              style: AppTextStyles.caption
+                  .copyWith(color: AppColors.secondaryText),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: AppSpacing.lg),
+            ElevatedButton.icon(
+              onPressed: _loadWithCache,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accentTeal,
+                foregroundColor: AppColors.white,
+                elevation: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.receipt_long_outlined,
+              size: 64, color: AppColors.softGray),
+          SizedBox(height: AppSpacing.md),
+          Text('No transactions found',
+              style: AppTextStyles.cardTitle
+                  .copyWith(color: AppColors.secondaryText)),
+          SizedBox(height: AppSpacing.xs),
+          Text(
+            'Transactions for the selected period\nwill appear here.',
+            style: AppTextStyles.caption
+                .copyWith(color: AppColors.tertiaryText),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Transaction card ────────────────────────────────────────────────────────
+
+  Widget _buildTransactionCard(Transaction t) {
+    final statusColor = _statusColor(t.status);
+    final fuelIcon = _fuelIcon(t.fuelType);
+
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(
+        context,
+        '/transaction-detail',
+        arguments: {'transactionId': t.id},
+      ),
+      child: Container(
+        margin: EdgeInsets.only(bottom: AppSpacing.sm),
+        padding: EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(AppBorderRadius.card),
+          boxShadow: AppShadows.subtleList,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color:
+                    AppColors.accentTeal.withValues(alpha: 0.1),
+                borderRadius:
+                    BorderRadius.circular(AppBorderRadius.small),
+              ),
+              child: Icon(fuelIcon,
+                  color: AppColors.accentTeal, size: 22),
+            ),
+            SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        t.fuelType.name[0].toUpperCase() +
+                            t.fuelType.name.substring(1),
+                        style: AppTextStyles.body
+                            .copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        _pkr(t.totalAmount),
+                        style: AppTextStyles.body.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.brandNavy),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: AppSpacing.xs),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${t.litresDispensed.toStringAsFixed(2)} L  •  ${_pkr(t.pricePerLitre)}/L',
+                        style: AppTextStyles.caption.copyWith(
+                            color: AppColors.secondaryText),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(
+                              AppBorderRadius.pill),
+                        ),
+                        child: Text(
+                          t.status.name,
+                          style: AppTextStyles.caption.copyWith(
+                              color: statusColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 10),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: AppSpacing.xs),
+                  Text(
+                    _formatDate(t.createdAt),
+                    style: AppTextStyles.caption.copyWith(
+                        color: AppColors.tertiaryText, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: AppSpacing.sm),
+            Icon(Icons.chevron_right_rounded,
+                color: AppColors.softGray, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _statusColor(TransactionStatus s) {
+    switch (s) {
+      case TransactionStatus.completed:
+        return AppColors.success;
+      case TransactionStatus.pending:
+        return AppColors.warning;
+      case TransactionStatus.failed:
+        return AppColors.alert;
+      case TransactionStatus.refunded:
+        return AppColors.accentTeal;
+    }
+  }
+
+  IconData _fuelIcon(FuelType t) {
+    switch (t) {
+      case FuelType.cng:
+        return Icons.gas_meter_outlined;
+      case FuelType.lpg:
+        return Icons.propane_outlined;
+      default:
+        return Icons.local_gas_station_rounded;
+    }
+  }
 }
 
-// ─── Data helpers ─────────────────────────────────────────────────────────────
+// ── Spending bar chart ────────────────────────────────────────────────────────
 
-class _FuelStat {
-  final double litres;
-  final double amount;
-  final int count;
+class _SpendingBarChart extends StatelessWidget {
+  final List<DailySpending> data;
+  const _SpendingBarChart({required this.data});
 
-  const _FuelStat({
-    required this.litres,
-    required this.amount,
-    required this.count,
-  });
-}
+  static const double _barAreaH = 100.0;
+  static const double _labelH   = 22.0;
+  static const double _barW     = 24.0;
+  static const double _colW     = 44.0;
 
-class _MonthStat {
-  final String label;
-  final double amount;
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return Center(
+        child: Text(
+          'No spending data',
+          style: AppTextStyles.caption
+              .copyWith(color: AppColors.tertiaryText),
+        ),
+      );
+    }
 
-  const _MonthStat({required this.label, required this.amount});
+    final maxAmt = data.map((e) => e.amount).reduce(max);
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: data.map((d) {
+          final frac   = maxAmt > 0 ? (d.amount / maxAmt).clamp(0.0, 1.0) : 0.0;
+          final barH   = max(4.0, _barAreaH * frac);
+          final label  = d.date.length >= 10 ? d.date.substring(5) : d.date;
+
+          return SizedBox(
+            width: _colW,
+            height: _barAreaH + _labelH,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // bar
+                Container(
+                  width: _barW,
+                  height: barH,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentTeal,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // date label
+                SizedBox(
+                  height: _labelH - 4,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: AppColors.tertiaryText,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 }

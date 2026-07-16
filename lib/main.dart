@@ -74,6 +74,7 @@ Future<void> main() async {
   await PreferencesService.init();
   AppThemeController.initialize();
   await TransactionSyncService.instance.init();
+  await Hive.openBox('tx_cache');
   runApp(const ProviderScope(child: MyApp()));
 }
 

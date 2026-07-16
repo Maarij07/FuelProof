@@ -1,27 +1,13 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/constants/text_styles.dart';
 import '../../core/constants/spacing.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/models/error_models.dart';
-import '../../core/models/transaction_models.dart';
-import '../../core/repositories/transaction_repository.dart';
 import '../../core/state/app_providers.dart';
-
-class EvidenceID {
-  final String id;
-  final String type;
-  final DateTime timestamp;
-  final String? description;
-
-  EvidenceID({
-    required this.id,
-    required this.type,
-    required this.timestamp,
-    this.description,
-  });
-}
 
 class EvidenceCaptureScreen extends ConsumerStatefulWidget {
   final String? transactionId;
@@ -34,38 +20,26 @@ class EvidenceCaptureScreen extends ConsumerStatefulWidget {
 }
 
 class _EvidenceCaptureScreenState extends ConsumerState<EvidenceCaptureScreen> {
-  late final TransactionRepository _transactionRepository;
+  final ImagePicker _picker = ImagePicker();
 
-  bool _hasCapture = false;
+  XFile? _capturedFile;
+  Uint8List? _imageBytes;
   bool _isSubmitting = false;
-  late TextEditingController _descriptionController;
-  late EvidenceID _currentEvidence;
-  FraudSeverity _selectedSeverity = FraudSeverity.medium;
   String? _transactionId;
+  final TextEditingController _descriptionController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    _transactionRepository = ref.read(transactionRepositoryProvider);
-
-    _descriptionController = TextEditingController();
-    _currentEvidence = EvidenceID(
-      id: 'EV-${DateTime.now().millisecondsSinceEpoch}',
-      type: 'Receipt',
-      timestamp: DateTime.now(),
-    );
-  }
+  // Retention info
+  static const int _retentionDays = 90;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_transactionId != null) return;
-
     final args = ModalRoute.of(context)?.settings.arguments;
-    final routeTransactionId = args is Map<String, dynamic>
+    final routeId = args is Map<String, dynamic>
         ? args['transactionId'] as String?
         : null;
-    _transactionId = routeTransactionId ?? widget.transactionId;
+    _transactionId = routeId ?? widget.transactionId;
   }
 
   @override
@@ -74,30 +48,68 @@ class _EvidenceCaptureScreenState extends ConsumerState<EvidenceCaptureScreen> {
     super.dispose();
   }
 
-  void _capturePhoto() {
-    setState(() {
-      _hasCapture = true;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Photo captured successfully'),
-        backgroundColor: AppColors.success,
-      ),
-    );
+  Future<void> _captureFromCamera() async {
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 75,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      setState(() {
+        _capturedFile = file;
+        _imageBytes = bytes;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Camera error: ${e.toString()}'),
+          backgroundColor: AppColors.alert,
+        ),
+      );
+    }
   }
 
-  void _retakePhoto() {
+  Future<void> _pickFromGallery() async {
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 75,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      setState(() {
+        _capturedFile = file;
+        _imageBytes = bytes;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gallery error: ${e.toString()}'),
+          backgroundColor: AppColors.alert,
+        ),
+      );
+    }
+  }
+
+  void _retake() {
     setState(() {
-      _hasCapture = false;
-      _descriptionController.clear();
+      _capturedFile = null;
+      _imageBytes = null;
     });
   }
 
   Future<void> _submitEvidence() async {
-    if (!_hasCapture) {
+    if (_imageBytes == null || _capturedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please capture a photo first'),
+          content: const Text('Please capture or select a photo first.'),
           backgroundColor: AppColors.alert,
         ),
       );
@@ -108,265 +120,273 @@ class _EvidenceCaptureScreenState extends ConsumerState<EvidenceCaptureScreen> {
     if (transactionId == null || transactionId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Transaction ID is missing for evidence submission.'),
+          content: const Text('Transaction ID missing.'),
           backgroundColor: AppColors.alert,
         ),
       );
       return;
     }
 
-    final reason = _descriptionController.text.trim();
-    if (reason.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please add a reason before submitting.'),
-          backgroundColor: AppColors.alert,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = true;
-    });
+    setState(() => _isSubmitting = true);
 
     try {
-      await _transactionRepository.flagTransaction(
+      final repo = ref.read(evidenceRepositoryProvider);
+      final filename = _capturedFile!.name.isNotEmpty
+          ? _capturedFile!.name
+          : 'evidence_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      await repo.uploadEvidence(
         transactionId: transactionId,
-        reason: reason,
-        severity: _selectedSeverity.name,
+        imageBytes: _imageBytes!,
+        filename: filename,
+        captureTrigger: 'manual',
       );
 
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Report submitted successfully'),
+          content: const Text('Evidence uploaded successfully.'),
           backgroundColor: AppColors.success,
         ),
       );
-
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-
-      final message =
-          e is AppError && e.detail != null && e.detail!.trim().isNotEmpty
+      final msg = e is AppError && e.detail != null && e.detail!.isNotEmpty
           ? e.detail!
-          : 'Unable to submit report right now.';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+          : 'Upload failed. Please try again.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: AppColors.alert),
+      );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
-  String _formatTimestamp(DateTime dateTime) {
-    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = _imageBytes != null;
+
     return Scaffold(
       backgroundColor: AppColors.primaryBackground,
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        automaticallyImplyLeading: false,
         title: Text('Capture Evidence', style: AppTextStyles.sectionHeading),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: EdgeInsets.all(AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: AppColors.tealLight,
-                  borderRadius: BorderRadius.circular(AppBorderRadius.card),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info, color: AppColors.accentTeal, size: 20),
-                    SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Text(
-                        'Take a clear photo of the receipt or fuel pump display',
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.accentTeal,
-                        ),
+        padding: EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Info banner
+            Container(
+              padding: EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.tealLight,
+                borderRadius: BorderRadius.circular(AppBorderRadius.card),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: AppColors.accentTeal,
+                    size: 20,
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      'Capture a clear photo of the receipt or fuel pump display. '
+                      'Evidence is retained for $_retentionDays days.',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.accentTeal,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              SizedBox(height: AppSpacing.lg),
-              Container(
-                height: 300,
+            ),
+            SizedBox(height: AppSpacing.lg),
+
+            // Image preview area
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppBorderRadius.card),
+              child: Container(
+                height: 280,
+                width: double.infinity,
                 decoration: BoxDecoration(
                   color: AppColors.secondaryBackground,
-                  borderRadius: BorderRadius.circular(AppBorderRadius.card),
-                  boxShadow: AppShadows.subtleList,
                   border: Border.all(
-                    color: _hasCapture
-                        ? AppColors.accentTeal
-                        : AppColors.softGray,
+                    color: hasImage ? AppColors.accentTeal : AppColors.softGray,
                     width: 2,
                   ),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.card),
                 ),
-                child: Stack(
-                  children: [
-                    if (!_hasCapture)
-                      Center(
+                child: hasImage
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.memory(_imageBytes!, fit: BoxFit.cover),
+                          // Watermark overlay
+                          Positioned(
+                            top: AppSpacing.sm,
+                            right: AppSpacing.sm,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: AppSpacing.sm,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.brandNavy.withValues(
+                                  alpha: 0.75,
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                  AppBorderRadius.small,
+                                ),
+                              ),
+                              child: Text(
+                                'TXN: ${_transactionId ?? 'N/A'}',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.white,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: AppSpacing.sm,
+                            left: AppSpacing.sm,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: AppSpacing.sm,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(
+                                  AppBorderRadius.small,
+                                ),
+                              ),
+                              child: Text(
+                                DateTime.now()
+                                    .toUtc()
+                                    .toIso8601String()
+                                    .substring(0, 19),
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.white,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.camera_alt,
+                              Icons.camera_alt_outlined,
                               size: 64,
                               color: AppColors.softGray,
                             ),
                             SizedBox(height: AppSpacing.md),
                             Text(
-                              'Ready to Capture',
+                              'No photo captured',
                               style: AppTextStyles.body.copyWith(
                                 color: AppColors.secondaryText,
                               ),
                             ),
+                            SizedBox(height: AppSpacing.xs),
+                            Text(
+                              'Tap a button below to add a photo',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.tertiaryText,
+                              ),
+                            ),
                           ],
                         ),
-                      )
-                    else
-                      Center(
-                        child: Container(
-                          width: double.infinity,
-                          height: double.infinity,
-                          color: AppColors.lightGray,
-                          child: Stack(
-                            children: [
-                              Center(
-                                child: Icon(
-                                  Icons.image,
-                                  size: 80,
-                                  color: AppColors.mediumGray,
-                                ),
-                              ),
-                              Positioned(
-                                top: 0,
-                                right: 0,
-                                child: Container(
-                                  margin: EdgeInsets.all(AppSpacing.md),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.sm,
-                                    vertical: AppSpacing.xs,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.brandNavy.withValues(
-                                      alpha: 0.8,
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      AppBorderRadius.small,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    _formatTimestamp(
-                                      _currentEvidence.timestamp,
-                                    ),
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: AppColors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                child: Container(
-                                  padding: EdgeInsets.all(AppSpacing.md),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.bottomCenter,
-                                      end: Alignment.topCenter,
-                                      colors: [
-                                        AppColors.brandNavy.withValues(
-                                          alpha: 0.8,
-                                        ),
-                                        Colors.transparent,
-                                      ],
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Receipt Captured',
-                                    style: AppTextStyles.body.copyWith(
-                                      color: AppColors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                      ),
+              ),
+            ),
+            SizedBox(height: AppSpacing.lg),
+
+            // Capture / Gallery / Retake buttons
+            if (!hasImage) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _captureFromCamera,
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text('Camera'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accentTeal,
+                        foregroundColor: AppColors.white,
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppBorderRadius.button,
                           ),
                         ),
                       ),
-                  ],
-                ),
-              ),
-              SizedBox(height: AppSpacing.lg),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _hasCapture ? _retakePhoto : null,
-                    icon: Icon(Icons.refresh),
-                    label: Text('Retake'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _hasCapture
-                          ? AppColors.brandNavy
-                          : AppColors.softGray,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.md,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppBorderRadius.button,
-                        ),
-                      ),
-                      elevation: 0,
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: _hasCapture ? null : _capturePhoto,
-                    icon: Icon(Icons.camera),
-                    label: Text('Capture'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accentTeal,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.md,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppBorderRadius.button,
+                  SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _pickFromGallery,
+                      icon: const Icon(Icons.photo_library),
+                      label: const Text('Gallery'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.brandNavy,
+                        side: BorderSide(color: AppColors.brandNavy),
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppBorderRadius.button,
+                          ),
                         ),
                       ),
-                      elevation: 0,
-                      disabledBackgroundColor: AppColors.softGray,
                     ),
                   ),
                 ],
               ),
-              SizedBox(height: AppSpacing.lg),
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _retake,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retake'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.brandNavy,
+                        side: BorderSide(color: AppColors.brandNavy),
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppBorderRadius.button,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            SizedBox(height: AppSpacing.lg),
+
+            // File metadata when image is selected
+            if (hasImage) ...[
               Container(
                 padding: EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
@@ -374,163 +394,131 @@ class _EvidenceCaptureScreenState extends ConsumerState<EvidenceCaptureScreen> {
                   borderRadius: BorderRadius.circular(AppBorderRadius.card),
                   boxShadow: AppShadows.subtleList,
                 ),
-                child: DropdownButtonFormField<FraudSeverity>(
-                  initialValue: _selectedSeverity,
-                  decoration: const InputDecoration(labelText: 'Severity'),
-                  items: FraudSeverity.values
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(value.name.toUpperCase()),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Capture Details', style: AppTextStyles.cardTitle),
+                    SizedBox(height: AppSpacing.md),
+                    _detailRow(
+                      'File',
+                      _capturedFile!.name.isNotEmpty
+                          ? _capturedFile!.name
+                          : 'evidence.jpg',
+                    ),
+                    _detailRow('Size', _formatFileSize(_imageBytes!.length)),
+                    _detailRow('Transaction', _transactionId ?? 'N/A'),
+                    _detailRow(
+                      'Retention',
+                      'Auto-deleted after $_retentionDays days',
+                    ),
+                    _detailRow(
+                      'Timestamp',
+                      '${DateTime.now().toUtc().toIso8601String().substring(0, 19)} UTC',
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: AppSpacing.lg),
+            ],
+
+            // Optional description
+            Text('Description (optional)', style: AppTextStyles.cardTitle),
+            SizedBox(height: AppSpacing.sm),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(AppBorderRadius.input),
+                boxShadow: AppShadows.subtleList,
+              ),
+              child: TextField(
+                controller: _descriptionController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Add any additional context or notes...',
+                  hintStyle: AppTextStyles.body.copyWith(
+                    color: AppColors.tertiaryText,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.all(AppSpacing.md),
+                ),
+                style: AppTextStyles.body,
+              ),
+            ),
+            SizedBox(height: AppSpacing.xl),
+
+            // Submit button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: (_isSubmitting || !hasImage)
+                    ? null
+                    : _submitEvidence,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: AppColors.white,
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md + 4),
+                  elevation: 0,
+                  disabledBackgroundColor: AppColors.softGray,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppBorderRadius.button),
+                  ),
+                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
                       )
-                      .toList(),
-                  onChanged: _isSubmitting
-                      ? null
-                      : (value) {
-                          if (value == null) return;
-                          setState(() {
-                            _selectedSeverity = value;
-                          });
-                        },
-                ),
-              ),
-              SizedBox(height: AppSpacing.lg),
-              if (_hasCapture) ...[
-                Container(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(AppBorderRadius.card),
-                    boxShadow: AppShadows.subtleList,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Evidence Details', style: AppTextStyles.cardTitle),
-                      SizedBox(height: AppSpacing.md),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
+                          const Icon(Icons.cloud_upload_outlined),
+                          SizedBox(width: AppSpacing.sm),
                           Text(
-                            'ID',
-                            style: AppTextStyles.body.copyWith(
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
-                          Text(
-                            _currentEvidence.id,
-                            style: AppTextStyles.body.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.accentTeal,
+                            'Upload Evidence',
+                            style: AppTextStyles.cardTitle.copyWith(
+                              color: AppColors.white,
                             ),
                           ),
                         ],
                       ),
-                      SizedBox(height: AppSpacing.md),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Type',
-                            style: AppTextStyles.body.copyWith(
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
-                          Text(
-                            _currentEvidence.type,
-                            style: AppTextStyles.body.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryText,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: AppSpacing.md),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Captured At',
-                            style: AppTextStyles.body.copyWith(
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
-                          Text(
-                            _formatTimestamp(_currentEvidence.timestamp),
-                            style: AppTextStyles.body.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: AppSpacing.lg),
-              ],
-              Text('Optional Description', style: AppTextStyles.cardTitle),
-              SizedBox(height: AppSpacing.md),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(AppBorderRadius.input),
-                  boxShadow: AppShadows.subtleList,
-                ),
-                child: TextField(
-                  controller: _descriptionController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText: 'Add any additional notes...',
-                    hintStyle: AppTextStyles.body.copyWith(
-                      color: AppColors.tertiaryText,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(AppSpacing.md),
-                  ),
-                  style: AppTextStyles.body,
-                ),
               ),
-              SizedBox(height: AppSpacing.lg),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submitEvidence,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppBorderRadius.button,
-                      ),
-                    ),
-                    elevation: 0,
-                    disabledBackgroundColor: AppColors.softGray,
-                  ),
-                  child: _isSubmitting
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.white,
-                            ),
-                          ),
-                        )
-                      : Text(
-                          'Submit Evidence',
-                          style: AppTextStyles.cardTitle.copyWith(
-                            color: AppColors.white,
-                          ),
-                        ),
-                ),
-              ),
-              SizedBox(height: AppSpacing.xl),
-            ],
-          ),
+            ),
+            SizedBox(height: AppSpacing.xl),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 90,
+            child: Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.secondaryText,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.caption.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.primaryText,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

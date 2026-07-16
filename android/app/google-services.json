@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "640981208114",
-    "project_id": "fuelguard-f3112",
-    "storage_bucket": "fuelguard-f3112.firebasestorage.app"
+    "project_number": "13237553630",
+    "project_id": "fuelguard-a10a6",
+    "storage_bucket": "fuelguard-a10a6.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:640981208114:android:7b55c69464b7ed6ee8402b",
+        "mobilesdk_app_id": "1:13237553630:android:334fd63f53e8c07a63354f",
         "android_client_info": {
           "package_name": "com.example.fuelguard"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDnjDTK44KYx0i8qqcd9V8W8ThT2j6oZcE"
+          "current_key": "AIzaSyCHcfejS712n75IfvAUzS21Mnh-FzWiXr4"
         }
       ],
       "services": {

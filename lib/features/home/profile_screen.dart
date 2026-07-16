@@ -491,6 +491,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Close'),
             ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _changeProfilePictureQuick();
+              },
+              child: Text(
+                'Edit Photo',
+                style: TextStyle(color: AppColors.accentTeal),
+              ),
+            ),
           ],
         );
       },

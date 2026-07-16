@@ -6,7 +6,7 @@ import 'token_manager.dart';
 class ApiClient {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://web-production-0cb0e.up.railway.app/api/v1',
+    defaultValue: 'https://web-production-133776.up.railway.app/api/v1',
   );
   static const int _connectionTimeout = 30000;
   static const int _receiveTimeout = 30000;
@@ -205,6 +205,43 @@ class ApiClient {
     }
   }
 
+  /// PATCH request
+  Future<T> patch<T>(
+    String endpoint, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    T Function(dynamic)? parser,
+  }) async {
+    try {
+      final response = await _dio.patch(
+        endpoint,
+        data: data,
+        queryParameters: queryParameters,
+      );
+      if (parser != null) return parser(response.data);
+      return response.data as T;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// POST that returns raw bytes (for report exports)
+  Future<List<int>> postDownload(
+    String endpoint, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      final response = await _dio.post(
+        endpoint,
+        queryParameters: queryParameters,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data as List<int>;
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Multipart file upload (for evidence photos)
   Future<T> uploadMultipart<T>(
     String endpoint, {
@@ -247,6 +284,25 @@ class ApiClient {
     }
   }
 
+  /// Extract a human-readable detail string from FastAPI error responses.
+  /// FastAPI may return detail as a String or as a List of validation objects.
+  String? _extractDetail(dynamic responseData) {
+    if (responseData is! Map) return null;
+    final detail = responseData['detail'];
+    if (detail is String) return detail;
+    if (detail is List && detail.isNotEmpty) {
+      final first = detail.first;
+      if (first is Map) {
+        final msg = first['msg']?.toString();
+        final loc = (first['loc'] as List?)?.join(' → ');
+        if (msg != null && loc != null) return '$loc: $msg';
+        return msg;
+      }
+      return detail.first?.toString();
+    }
+    return null;
+  }
+
   /// Error handling
   AppError _handleError(dynamic error) {
     if (error is AppError) {
@@ -256,7 +312,7 @@ class ApiClient {
     if (error is DioException) {
       final statusCode = error.response?.statusCode;
       final responseData = error.response?.data;
-      final detail = (responseData is Map) ? responseData['detail'] as String? : null;
+      final detail = _extractDetail(responseData);
 
       switch (statusCode) {
         case 400:
@@ -285,7 +341,7 @@ class ApiClient {
           );
         case 422:
           return AppError(
-            message: 'Validation error',
+            message: detail ?? 'Validation error',
             statusCode: 422,
             detail: detail,
           );

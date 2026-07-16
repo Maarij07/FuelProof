@@ -9,6 +9,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/constants/text_styles.dart';
 import '../../core/models/transaction_models.dart';
+import '../../core/repositories/session_repository.dart';
 import '../../core/repositories/transaction_repository.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/app_logger.dart';
@@ -29,7 +30,10 @@ class _LiveSessionScreenState extends ConsumerState<LiveSessionScreen> {
   late final ApiClient _apiClient;
   late final TokenManager _tokenManager;
   late final TransactionRepository _transactionRepository;
+  late final SessionRepository _sessionRepository;
   HardwareService? _hardware;
+
+  bool _isDisconnecting = false;
 
   // ── Route args ──────────────────────────────────────────────────────────────
   String? _sessionId;
@@ -65,6 +69,7 @@ class _LiveSessionScreenState extends ConsumerState<LiveSessionScreen> {
     _tokenManager = ref.read(tokenManagerProvider);
     _apiClient = ref.read(apiClientProvider);
     _transactionRepository = ref.read(transactionRepositoryProvider);
+    _sessionRepository = ref.read(sessionRepositoryProvider);
   }
 
   @override
@@ -291,6 +296,48 @@ class _LiveSessionScreenState extends ConsumerState<LiveSessionScreen> {
     }
   }
 
+  Future<void> _disconnectSession() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Disconnect session?'),
+        content: const Text(
+          'This will close the current fueling session. '
+          'Any dispensed fuel will not be recorded.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Disconnect', style: TextStyle(color: AppColors.alert)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDisconnecting = true);
+    _hardware?.dispose();
+    _hardware = null;
+
+    try {
+      if (_sessionId != null) {
+        await _sessionRepository.closeSession(
+          sessionId: _sessionId!,
+          reason: 'user_disconnected',
+        );
+      }
+    } catch (_) {
+      // Best-effort — navigate home regardless
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed('/home');
+  }
+
   void _onHardwareError(String error) {
     if (!mounted) return;
     setState(() {
@@ -422,7 +469,10 @@ class _LiveSessionScreenState extends ConsumerState<LiveSessionScreen> {
           _buildDiscrepancyCard(_result!),
           SizedBox(height: AppSpacing.lg),
           if (_result!.capturedImage != null) ...[
-            _buildEvidencePhoto(_result!.capturedImage!),
+            _buildEvidencePhoto(
+              _result!.capturedImage!,
+              capturedAt: _result!.capturedAt,
+            ),
             SizedBox(height: AppSpacing.lg),
           ],
           // Sync status / WiFi prompt
@@ -445,6 +495,38 @@ class _LiveSessionScreenState extends ConsumerState<LiveSessionScreen> {
             icon: Icons.sensors_rounded,
             label: 'Capturing session data...',
             isLoading: true,
+          ),
+        ],
+
+        // Disconnect button — only during active session, before result
+        if (_result == null && !_isProcessing) ...[
+          SizedBox(height: AppSpacing.lg),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isDisconnecting ? null : _disconnectSession,
+              icon: _isDisconnecting
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.alert,
+                      ),
+                    )
+                  : Icon(Icons.link_off_rounded, color: AppColors.alert),
+              label: Text(
+                _isDisconnecting ? 'Disconnecting...' : 'Disconnect Session',
+                style: TextStyle(color: AppColors.alert),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: AppColors.alert),
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppBorderRadius.button),
+                ),
+              ),
+            ),
           ),
         ],
 
@@ -734,7 +816,18 @@ class _LiveSessionScreenState extends ConsumerState<LiveSessionScreen> {
     );
   }
 
-  Widget _buildEvidencePhoto(Uint8List bytes) {
+  String _formatPakistanCaptureTime(DateTime capturedAt) {
+    final pkt = capturedAt.toUtc().add(const Duration(hours: 5));
+    final hour12 = pkt.hour % 12 == 0 ? 12 : pkt.hour % 12;
+    final minute = pkt.minute.toString().padLeft(2, '0');
+    final second = pkt.second.toString().padLeft(2, '0');
+    final period = pkt.hour >= 12 ? 'PM' : 'AM';
+    final day = pkt.day.toString().padLeft(2, '0');
+    final month = pkt.month.toString().padLeft(2, '0');
+    return '$day-$month-${pkt.year} $hour12:$minute:$second $period PKT';
+  }
+
+  Widget _buildEvidencePhoto(Uint8List bytes, {DateTime? capturedAt}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -744,6 +837,40 @@ class _LiveSessionScreenState extends ConsumerState<LiveSessionScreen> {
           borderRadius: BorderRadius.circular(AppBorderRadius.card),
           child: Image.memory(bytes, width: double.infinity, fit: BoxFit.cover),
         ),
+        if (capturedAt != null) ...[
+          SizedBox(height: AppSpacing.sm),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(AppBorderRadius.card),
+              border: Border.all(color: AppColors.softGray),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.schedule_rounded,
+                  size: 16,
+                  color: AppColors.accentTeal,
+                ),
+                SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Captured on ${_formatPakistanCaptureTime(capturedAt)}',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.secondaryText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

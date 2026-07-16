@@ -57,6 +57,7 @@ class HardwareSessionResult {
   final double discrepancy;
   final bool tamperDetected;
   final Uint8List? capturedImage;
+  final DateTime? capturedAt;
 
   /// Set after background sync completes. Null while sync is pending.
   final String? transactionId;
@@ -70,6 +71,7 @@ class HardwareSessionResult {
     required this.discrepancy,
     required this.tamperDetected,
     this.capturedImage,
+    this.capturedAt,
     this.transactionId,
     this.fraudFlagged = false,
   });
@@ -80,11 +82,12 @@ class HardwareSessionResult {
   }) => HardwareSessionResult(
     flowmeterLitres: flowmeterLitres,
     dispenserLitres: dispenserLitres,
-    discrepancy:     discrepancy,
-    tamperDetected:  tamperDetected,
-    capturedImage:   capturedImage,
-    transactionId:   transactionId,
-    fraudFlagged:    fraudFlagged,
+    discrepancy: discrepancy,
+    tamperDetected: tamperDetected,
+    capturedImage: capturedImage,
+    capturedAt: capturedAt,
+    transactionId: transactionId,
+    fraudFlagged: fraudFlagged,
   );
 }
 
@@ -180,9 +183,9 @@ class HardwareService {
       AppLogger.debug(
         'HW',
         'poll: state=${reading.state.name} '
-        'flow=${reading.flowmeter.toStringAsFixed(3)}L '
-        'disp=${reading.dispenser.toStringAsFixed(3)}L '
-        'tamper=${reading.tamper}',
+            'flow=${reading.flowmeter.toStringAsFixed(3)}L '
+            'disp=${reading.dispenser.toStringAsFixed(3)}L '
+            'tamper=${reading.tamper}',
       );
 
       onReading(reading);
@@ -203,8 +206,8 @@ class HardwareService {
         AppLogger.log(
           'HW',
           'Session FINISHED — flow=${reading.flowmeter.toStringAsFixed(3)}L '
-          'disp=${reading.dispenser.toStringAsFixed(3)}L '
-          'discrepancy=${reading.discrepancy.toStringAsFixed(3)}L',
+              'disp=${reading.dispenser.toStringAsFixed(3)}L '
+              'discrepancy=${reading.discrepancy.toStringAsFixed(3)}L',
         );
         await _finalise(reading);
       }
@@ -235,7 +238,7 @@ class HardwareService {
         .post<dynamic>(
           '/nozzles/$nozzleId/tamper-alert',
           data: {
-            'nozzle_id':  nozzleId,
+            'nozzle_id': nozzleId,
             'alert_type': 'hardware_tamper',
             'description':
                 'Tamper flag armed before session start. '
@@ -249,12 +252,14 @@ class HardwareService {
     // ── Capture photo from ESP32 (still on FuelMonitor WiFi — this always works) ──
     AppLogger.log('HW', 'Finalise: capturing photo from /capture');
     Uint8List? photo;
+    DateTime? capturedAt;
     try {
       final response = await _deviceDio.get<List<int>>(
         '/capture',
         options: Options(responseType: ResponseType.bytes),
       );
       photo = Uint8List.fromList(response.data!);
+      capturedAt = DateTime.now();
       AppLogger.log('HW', 'Photo captured: ${photo.length} bytes');
     } catch (e) {
       AppLogger.warn('HW', 'Photo capture failed (non-fatal): $e');
@@ -265,14 +270,15 @@ class HardwareService {
       HardwareSessionResult(
         flowmeterLitres: finalReading.flowmeter,
         dispenserLitres: finalReading.dispenser,
-        discrepancy:     finalReading.discrepancy,
-        tamperDetected:  finalReading.tamper,
-        capturedImage:   photo,
+        discrepancy: finalReading.discrepancy,
+        tamperDetected: finalReading.tamper,
+        capturedImage: photo,
+        capturedAt: capturedAt,
       ),
     );
   }
 
-/// Resets the ESP32 for a new session. Call before [start] on subsequent sessions.
+  /// Resets the ESP32 for a new session. Call before [start] on subsequent sessions.
   Future<void> resetDevice() async {
     _pollTimer?.cancel();
     _tamperAlertFired = false;

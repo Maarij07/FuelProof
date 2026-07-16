@@ -7,24 +7,28 @@ part of 'transaction_models.dart';
 // **************************************************************************
 
 Transaction _$TransactionFromJson(Map<String, dynamic> json) => Transaction(
-      id: json['id'] as String,
-      sessionId: json['session_id'] as String,
-      nozzleId: json['nozzle_id'] as String,
-      userId: json['user_id'] as String,
+      id: json['id']?.toString() ?? '',
+      sessionId: json['session_id']?.toString() ?? '',
+      nozzleId: json['nozzle_id']?.toString() ?? '',
+      userId: json['user_id']?.toString() ?? '',
       vehicleId: json['vehicle_id'] as String?,
-      fuelType: $enumDecode(_$FuelTypeEnumMap, json['fuel_type']),
-      litresDispensed: (json['litres_dispensed'] as num).toDouble(),
-      pricePerLitre: (json['price_per_litre'] as num).toDouble(),
-      totalAmount: (json['total_amount'] as num).toDouble(),
+      fuelType: $enumDecodeNullable(_$FuelTypeEnumMap, json['fuel_type']) ??
+          FuelType.petrol,
+      litresDispensed: (json['litres_dispensed'] as num?)?.toDouble() ?? 0.0,
+      pricePerLitre: (json['price_per_litre'] as num?)?.toDouble() ?? 0.0,
+      totalAmount: (json['total_amount'] as num?)?.toDouble() ?? 0.0,
       paymentMethod:
-          $enumDecode(_$PaymentMethodEnumMap, json['payment_method']),
-      status: $enumDecode(_$TransactionStatusEnumMap, json['status']),
+          $enumDecodeNullable(_$PaymentMethodEnumMap, json['payment_method']) ??
+              PaymentMethod.cash,
+      status:
+          $enumDecodeNullable(_$TransactionStatusEnumMap, json['status']) ??
+              TransactionStatus.completed,
       employeeId: json['employee_id'] as String?,
       stationId: json['station_id'] as String?,
       receiptUrl: json['receipt_url'] as String?,
       evidenceUrl: json['evidence_url'] as String?,
-      isFlagged: json['is_flagged'] as bool,
-      createdAt: json['created_at'] as String,
+      isFlagged: json['is_flagged'] as bool? ?? false,
+      createdAt: json['created_at']?.toString() ?? '',
     );
 
 Map<String, dynamic> _$TransactionToJson(Transaction instance) =>
