@@ -49,6 +49,8 @@
 		<string>FuelGuard needs camera access to scan QR codes at fuel stations</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>FuelGuard needs photo library access to select profile pictures from your gallery</string>
+		<key>GoogleMapsApiKey</key>
+		<string>YOUR_IOS_GOOGLE_MAPS_API_KEY</string>
 		<key>UIStatusBarHidden</key>
 		<false/>
 	</dict>
